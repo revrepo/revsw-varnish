@@ -1,0 +1,20 @@
+Source: revsw-varnish-modules
+Section: web
+Priority: extra
+Maintainer: Sorin Otescu <sorin@revsw.com>
+Build-Depends: debhelper (>= 7), build-essential, python-docutils
+Built-Using: revsw-varnish (= 4.0.2)
+Standards-Version: 3.8.1
+
+Package: revsw-varnish-modules
+Architecture: any
+Depends: revsw-varnish (>= 3.0.5), ${Varnish:ABI}, ${misc:Depends}
+Description: Various VMODs for Varnish
+ Includes: Cookie, Timers, ChromeLogger, Header, Var
+
+Package: revsw-varnish-modules-dbg
+Architecture: any
+Depends: revsw-varnish-modules (= ${binary:Version}),
+         ${misc:Depends}
+Description: Various VMODs for Varnish (debug symbols)
+ Includes: Cookie, Timers, ChromeLogger, Header, Var

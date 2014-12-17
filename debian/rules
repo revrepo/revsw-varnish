@@ -1,0 +1,53 @@
+#!/usr/bin/make -f
+export DH_VERBOSE=1
+
+VARNISHSRC := $(shell readlink -f ../varnish-4.0.2)
+VMODDIR := /usr/lib/varnish/vmods
+VMOD_ABI := $(shell printf '\#include "vmod_abi.h"\nVMOD_ABI_Version' | cpp - -I$(VARNISHSRC)/include | sed '/^\#/D;s/"//g;s/\([A-Z]\)/\L\1/g;s/[^a-z0-9.]/-/g;s/varnish/varnishabi/')
+
+override_dh_auto_configure:
+	cd libvmod-chromelogger-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+	cd libvmod-cookie-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+	cd libvmod-header-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+	cd libvmod-querystring && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+	cd libvmod-timers-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+	cd libvmod-var-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+
+override_dh_gencontrol:
+	echo "Varnish:ABI=$(VMOD_ABI)" >> debian/substvars
+
+	if [ -n "$$DEBIAN_OVERRIDE_BINARY_VERSION" ]; then \
+		dh_gencontrol -- -Tdebian/substvars -v$$DEBIAN_OVERRIDE_BINARY_VERSION; \
+	else \
+		dh_gencontrol -- -Tdebian/substvars; \
+	fi
+
+override_dh_auto_build:
+	$(MAKE) -C libvmod-chromelogger-4.0
+	$(MAKE) -C libvmod-cookie-4.0
+	$(MAKE) -C libvmod-header-4.0
+	$(MAKE) -C libvmod-querystring
+	$(MAKE) -C libvmod-timers-4.0
+	$(MAKE) -C libvmod-var-4.0
+
+override_dh_auto_install:
+	$(MAKE) -C libvmod-chromelogger-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+	$(MAKE) -C libvmod-cookie-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+	$(MAKE) -C libvmod-header-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+	$(MAKE) -C libvmod-querystring DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+	$(MAKE) -C libvmod-timers-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+	$(MAKE) -C libvmod-var-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+
+override_dh_auto_clean:
+	$(MAKE) -C libvmod-chromelogger-4.0 distclean || true
+	$(MAKE) -C libvmod-cookie-4.0 distclean || true
+	$(MAKE) -C libvmod-header-4.0 distclean || true
+	$(MAKE) -C libvmod-querystring distclean || true
+	$(MAKE) -C libvmod-timers-4.0 distclean || true
+	$(MAKE) -C libvmod-var-4.0 distclean || true
+
+override_dh_strip:
+	dh_strip --dbg-package=revsw-varnish-modules-dbg
+
+%:
+	dh $@
