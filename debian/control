@@ -2,7 +2,8 @@ Source: revsw-varnish-modules
 Section: web
 Priority: extra
 Maintainer: Sorin Otescu <sorin@revsw.com>
-Build-Depends: debhelper (>= 7), build-essential, python-docutils
+Build-Depends: debhelper (>= 7), build-essential, python-docutils,
+ revsw-libvarnishapi-dev
 Built-Using: revsw-varnish (= 4.0.2)
 Standards-Version: 3.8.1
 
