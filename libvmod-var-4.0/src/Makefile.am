@@ -25,6 +25,4 @@ EXTRA_DIST = \
 	vmod_var.vcc \
 	$(VMOD_TESTS)
 
-CLEANFILES = $(builddir)/vcc_if.c $(builddir)/vcc_if.h \
-	$(builddir)/vmod_var.man.rst \
-	$(builddir)/vmod_var.rst
+CLEANFILES = $(builddir)/vcc_if.c $(builddir)/vcc_if.h
