@@ -1,18 +1,43 @@
-Module var
-Init init_function
+$Module var 3 Variable VMOD for Varnish
+$Init init_function
 # Shortcut for strings
-Function VOID set(STRING, STRING)
-Function STRING get(STRING)
+$Function VOID set(STRING, STRING)
+$Function STRING get(STRING)
 
-Function VOID global_set(STRING, STRING)
-Function STRING global_get(STRING)
+# Unset for any
+$Function VOID unset(STRING)
 
-Function VOID set_int(STRING, INT)
-Function INT get_int(STRING)
-Function VOID set_string(STRING, STRING)
-Function STRING get_string(STRING)
-Function VOID set_real(STRING, REAL)
-Function REAL get_real(STRING)
-Function VOID set_duration(STRING, DURATION)
-Function DURATION get_duration(STRING)
-Function VOID clear()
+$Function VOID global_set(STRING, STRING)
+$Function STRING global_get(STRING)
+
+$Function VOID global_set_int(STRING, INT)
+$Function INT global_get_int(STRING)
+$Function VOID global_set_real(STRING, REAL)
+$Function REAL global_get_real(STRING)
+$Function VOID global_set_duration(STRING, DURATION)
+$Function DURATION global_get_duration(STRING)
+$Function VOID global_set_bool(STRING, BOOL)
+$Function BOOL global_get_bool(STRING)
+
+$Function VOID set_int(STRING, INT)
+$Function INT get_int(STRING)
+$Function VOID set_string(STRING, STRING)
+$Function VOID set_string_allow_null(STRING, STRING)
+$Function VOID set_string_literal(STRING, STRING)
+$Function STRING get_string(STRING)
+$Function VOID set_real(STRING, REAL)
+$Function REAL get_real(STRING)
+$Function VOID set_duration(STRING, DURATION)
+$Function DURATION get_duration(STRING)
+$Function VOID set_bool(STRING, BOOL)
+$Function BOOL get_bool(STRING)
+$Function BOOL and_or_set_bool(STRING, BOOL)
+$Function BOOL or_or_set_bool(STRING, BOOL)
+
+$Function VOID new_string_set(STRING)
+$Function INT string_set_is_empty(STRING)
+$Function VOID add_to_string_set(STRING, STRING)
+$Function VOID del_from_string_set(STRING, STRING)
+$Function STRING get_string_set_as_csv(STRING)
+
+$Function VOID clear()

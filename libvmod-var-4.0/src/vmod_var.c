@@ -2,23 +2,28 @@
 #include <ctype.h>
 
 #include "vrt.h"
-#include "bin/varnishd/cache.h"
+#include "cache/cache.h"
 
 #include "vcc_if.h"
 
 enum VAR_TYPE {
+	UNSET,
 	STRING,
 	INT,
 	REAL,
-	DURATION
+	DURATION,
+	BOOL
 };
 
 struct var {
+	unsigned magic;
+#define VAR_MAGIC 0x8A21A651
 	char *name;
 	enum VAR_TYPE type;
 	union {
 		char *STRING;
 		int INT;
+		unsigned BOOL;
 		double REAL;
 		double DURATION;
 	} value;
@@ -27,78 +32,91 @@ struct var {
 
 struct var_head {
 	unsigned magic;
-#define VMOD_VAR_MAGIC 0x64F33E2F
-	unsigned xid;
+#define VAR_HEAD_MAGIC 0x64F33E2F
+	uint32_t vxid;
 	VTAILQ_HEAD(, var) vars;
 };
 
-static struct var_head **var_list;
-int var_list_sz;
-VTAILQ_HEAD(, var) global_vars = VTAILQ_HEAD_INITIALIZER(global_vars);
+static struct var_head **var_list = NULL;
+static int var_list_sz = 0;
+static VTAILQ_HEAD(, var) global_vars = VTAILQ_HEAD_INITIALIZER(global_vars);
 static pthread_mutex_t var_list_mtx = PTHREAD_MUTEX_INITIALIZER;
 
+static void
+vh_init(struct var_head *vh)
+{
 
-static void vh_init(struct var_head *vh) {
-	vh->magic = VMOD_VAR_MAGIC;
+	AN(vh);
+	memset(vh, 0, sizeof *vh);
+	vh->magic = VAR_HEAD_MAGIC;
 	VTAILQ_INIT(&vh->vars);
 }
 
-static void vh_clear(struct var_head *vh) {
-	struct var *v, *v2;
-
-	VTAILQ_INIT(&vh->vars);
-	VTAILQ_FOREACH_SAFE(v, &vh->vars, list, v2) {
-		VTAILQ_REMOVE(&vh->vars, v, list);
-	}
-	vh->xid = 0;
-	vh->magic = 0;
-}
-
-static struct var * vh_get_var(struct var_head *vh, const char *name) {
+static struct var *
+vh_get_var(struct var_head *vh, const char *name)
+{
 	struct var *v;
 
-	if (!name)
-		return NULL;
+	AN(vh);
+	AN(name);
 	VTAILQ_FOREACH(v, &vh->vars, list) {
-		if (v->name && strcmp(v->name, name) == 0)
+		CHECK_OBJ_NOTNULL(v, VAR_MAGIC);
+		AN(v->name);
+		if (strcmp(v->name, name) == 0)
 			return v;
 	}
 	return NULL;
 }
 
-static struct var * vh_get_var_alloc(struct var_head *vh, const char *name, struct sess *sp)
+
+static struct var *
+vh_get_var_alloc(struct var_head *vh, const char *name, const struct vrt_ctx *ctx)
 {
 	struct var *v;
-	v = vh_get_var(vh, name);
 
-	if (!v) {
+	v = vh_get_var(vh, name);
+	if (!v)
+	{
 		/* Allocate and add */
-		v = (struct var*)WS_Alloc(sp->ws, sizeof(struct var));
+		v = (struct var*)WS_Alloc(ctx->ws, sizeof(struct var));
 		AN(v);
-		v->name = WS_Dup(sp->ws, name);
+		v->magic = VAR_MAGIC;
+		v->name = WS_Copy(ctx->ws, name, -1);
 		AN(v->name);
 		VTAILQ_INSERT_HEAD(&vh->vars, v, list);
+	
 	}
+		
+
 	return v;
 }
 
 int
 init_function(struct vmod_priv *priv, const struct VCL_conf *conf)
 {
-	var_list_sz = 256;
-	var_list = malloc(sizeof(struct var_head *) * 256);
-	AN(var_list);
-	for (int i = 0 ; i < var_list_sz; i++) {
-		var_list[i] = malloc(sizeof(struct var_head));
-		vh_init(var_list[i]);
+
+	AZ(pthread_mutex_lock(&var_list_mtx));
+	if (var_list == NULL) {
+		AZ(var_list_sz);
+		var_list_sz = 256;
+		var_list = malloc(sizeof(struct var_head *) * 256);
+		AN(var_list);
+		for (int i = 0 ; i < var_list_sz; i++) {
+			var_list[i] = malloc(sizeof(struct var_head));
+			vh_init(var_list[i]);
+		}
 	}
+	AZ(pthread_mutex_unlock(&var_list_mtx));
 	return 0;
 }
 
-static struct var_head * get_vh(struct sess *sp) {
+static struct var_head *
+get_vh(const struct vrt_ctx *ctx)
+{
 	struct var_head *vh;
+
 	AZ(pthread_mutex_lock(&var_list_mtx));
-	while (var_list_sz <= sp->id) {
+	while (var_list_sz <= ctx->req->sp->fd) {
 		int ns = var_list_sz*2;
 		/* resize array */
 		var_list = realloc(var_list, ns * sizeof(struct var_head *));
@@ -109,160 +127,228 @@ static struct var_head * get_vh(struct sess *sp) {
 		assert(var_list_sz == ns);
 		AN(var_list);
 	}
-	vh = var_list[sp->id];
+	vh = var_list[ctx->req->sp->fd];
 
-	if (vh->xid != sp->xid) {
-		vh_clear(vh);
+	if (vh->vxid != ctx->req->sp->vxid) {
 		vh_init(vh);
-		vh->xid = sp->xid;
+		vh->vxid = ctx->req->sp->vxid;
 	}
 	AZ(pthread_mutex_unlock(&var_list_mtx));
 	return vh;
 }
 
-void
-vmod_set(struct sess *sp, const char *name, const char *value)
+VCL_VOID
+vmod_set(const struct vrt_ctx *ctx, VCL_STRING name, VCL_STRING value)
 {
-	vmod_set_string(sp, name, value);
+	vmod_set_string(ctx, name, value);
 }
 
-const char *
-vmod_get(struct sess *sp, const char *name)
+VCL_STRING
+vmod_get(const struct vrt_ctx *ctx, VCL_STRING name)
 {
-	return vmod_get_string(sp, name);
+	return vmod_get_string(ctx, name);
 }
 
-void
-vmod_set_string(struct sess *sp, const char *name, const char *value)
+VCL_VOID
+vmod_unset(const struct vrt_ctx *ctx, VCL_STRING name)
+{
+    struct var *v;
+    if (name == NULL)
+        return;
+    v = vh_get_var(get_vh(ctx), name);
+
+}
+
+VCL_VOID
+vmod_set_string(const struct vrt_ctx *ctx, VCL_STRING name, VCL_STRING value)
 {
 	struct var *v;
-	v = vh_get_var_alloc(get_vh(sp), name, sp);
+
+	if (name == NULL)
+		return;
+	v = vh_get_var_alloc(get_vh(ctx), name, ctx);
+	AN(v);
 	v->type = STRING;
-	v->value.STRING = WS_Dup(sp->ws, value);
+	if (value == NULL)
+		value = "";
+	v->value.STRING = WS_Copy(ctx->ws, value, -1);
 }
 
-const char *
-vmod_get_string(struct sess *sp, const char *name)
+VCL_STRING
+vmod_get_string(const struct vrt_ctx *ctx, VCL_STRING name)
 {
 	struct var *v;
-	v = vh_get_var(get_vh(sp), name);
-
-	if (!v)
+	if (name == NULL)
+		return (NULL);
+	v = vh_get_var(get_vh(ctx), name);
+	if (!v || v->type != STRING)
 		return NULL;
 	return (v->value.STRING);
 }
 
-void
-vmod_set_int(struct sess *sp, const char *name, int value)
-{
-	struct var *v;
-	v = vh_get_var_alloc(get_vh(sp), name, sp);
-	v->type = INT;
-	v->value.INT = value;
+
+#define VMOD_SET_X(vcl_type_u, vcl_type_l, ctype) \
+VCL_VOID \
+vmod_set_##vcl_type_l(const struct vrt_ctx *ctx, const char *name, ctype value) \
+{ \
+	struct var *v; \
+	if (name == NULL) \
+		return; \
+	v = vh_get_var_alloc(get_vh(ctx), name, ctx); \
+	AN(v); \
+	v->type = vcl_type_u; \
+	v->value.vcl_type_u = value; \
 }
 
-int
-vmod_get_int(struct sess *sp, const char *name)
-{
-	struct var *v;
+VMOD_SET_X(INT, int, VCL_INT)
+VMOD_SET_X(REAL, real, VCL_REAL)
+VMOD_SET_X(DURATION, duration, VCL_DURATION)
+VMOD_SET_X(BOOL, bool, unsigned)
 
-	v = vh_get_var(get_vh(sp), name);
-
-	if (!v)
-		return 0;
-	return (v->value.INT);
+#define VMOD_GET_X(vcl_type_u, vcl_type_l, ctype) \
+ctype \
+vmod_get_##vcl_type_l(const struct vrt_ctx *ctx, const char *name) \
+{ \
+	struct var *v; \
+\
+	if (name == NULL) \
+		return 0; \
+	v = vh_get_var(get_vh(ctx), name); \
+\
+	if (!v || v->type != vcl_type_u) \
+		return 0; \
+	return (v->value.vcl_type_u); \
 }
 
-void
-vmod_set_real(struct sess *sp, const char *name, double value)
-{
-	struct var *v;
-	v = vh_get_var_alloc(get_vh(sp), name, sp);
-	v->type = REAL;
-	v->value.REAL = value;
-}
+VMOD_GET_X(INT, int, VCL_INT)
+VMOD_GET_X(REAL, real, VCL_REAL)
+VMOD_GET_X(DURATION, duration, VCL_DURATION)
+VMOD_GET_X(BOOL, bool, unsigned)
 
-double
-vmod_get_real(struct sess *sp, const char *name)
-{
-	struct var *v;
-
-	v = vh_get_var(get_vh(sp), name);
-
-	if (!v)
-		return 0.;
-	return (v->value.REAL);
-}
-
-void
-vmod_set_duration(struct sess *sp, const char *name, double value)
-{
-	struct var *v;
-	v = vh_get_var_alloc(get_vh(sp), name, sp);
-	v->type = DURATION;
-	v->value.DURATION = value;
-}
-
-double
-vmod_get_duration(struct sess *sp, const char *name)
-{
-	struct var *v;
-
-	v = vh_get_var(get_vh(sp), name);
-
-	if (!v)
-		return 0;
-	return (v->value.DURATION);
-}
-
-void vmod_clear(struct sess *sp)
+VCL_VOID
+vmod_clear(const struct vrt_ctx *ctx)
 {
 	struct var_head *vh;
-	vh = get_vh(sp);
-	vh_clear(vh);
+	vh = get_vh(ctx);
 	vh_init(vh);
 }
 
-void
-vmod_global_set(struct sess *sp, const char *name, const char *value)
+VCL_VOID
+vmod_global_set(const struct vrt_ctx *ctx, VCL_STRING name, VCL_STRING value)
 {
 	struct var *v;
 
+	if (name == NULL)
+		return;
+
 	AZ(pthread_mutex_lock(&var_list_mtx));
 	VTAILQ_FOREACH(v, &global_vars, list) {
-		if (v->name && strcmp(v->name, name) == 0)
+		CHECK_OBJ_NOTNULL(v, VAR_MAGIC);
+		AN(v->name);
+		if (strcmp(v->name, name) == 0)
 			break;
 	}
-	if (v)
+	if (v) {
 		VTAILQ_REMOVE(&global_vars, v, list);
-	else
-		v = (struct var*)calloc(1, sizeof(struct var));
+		free(v->name);
+		v->name = NULL;
+	} else
+		ALLOC_OBJ(v, VAR_MAGIC);
 	AN(v);
-	free(v->name);
 	v->name = strdup(name);
 	AN(v->name);
 	VTAILQ_INSERT_HEAD(&global_vars, v, list);
 	if (v->type == STRING)
 		free(v->value.STRING);
+	v->value.STRING = NULL;
 	v->type = STRING;
-	v->value.STRING = strdup(value);
+	if (value != NULL)
+		v->value.STRING = strdup(value);
 
 	AZ(pthread_mutex_unlock(&var_list_mtx));
 }
 
-const char *
-vmod_global_get(struct sess *sp, const char *name)
+VCL_STRING
+vmod_global_get(const struct vrt_ctx *ctx, VCL_STRING name)
 {
 	struct var *v;
+	const char *r = NULL;
 
 	AZ(pthread_mutex_lock(&var_list_mtx));
 	VTAILQ_FOREACH(v, &global_vars, list) {
-		if (v->name && strcmp(v->name, name) == 0)
+		CHECK_OBJ_NOTNULL(v, VAR_MAGIC);
+		AN(v->name);
+		if (strcmp(v->name, name) == 0)
 			break;
 	}
+	if (v && v->value.STRING != NULL) {
+		r = WS_Copy(ctx->ws, v->value.STRING, -1);
+		AN(r);
+	}
 	AZ(pthread_mutex_unlock(&var_list_mtx));
-	if (!v)
-		return NULL;
-	return(v->value.STRING);
+	return(r);
 }
+
+#define VMOD_GLOBAL_SET_X(vcl_type_u, vcl_type_l, ctype)			    \
+void									                                \
+vmod_global_set_##vcl_type_l(const struct vrt_ctx *ctx, const char *name, ctype value)	\
+{									                                    \
+	struct var *v;				                                        \
+	if (name == NULL)				                                    \
+		return;				                                            \
+	AZ(pthread_mutex_lock(&var_list_mtx));				                \
+	VTAILQ_FOREACH(v, &global_vars, list) {				                \
+		CHECK_OBJ_NOTNULL(v, VAR_MAGIC);				                \
+		AN(v->name);				                                    \
+		if (strcmp(v->name, name) == 0)				                    \
+			break;				                                        \
+	}				                                                    \
+	if (v) {				                                            \
+		VTAILQ_REMOVE(&global_vars, v, list);				            \
+		free(v->name);				                                    \
+		v->name = NULL;				                                    \
+	} else				                                                \
+		ALLOC_OBJ(v, VAR_MAGIC);				                        \
+	AN(v);				                                                \
+	v->name = strdup(name);				                                \
+	AN(v->name);				                                        \
+	VTAILQ_INSERT_HEAD(&global_vars, v, list);				            \
+	if (v->type == STRING)				                                \
+		free(v->value.STRING);				                            \
+	v->value.vcl_type_u = value;				                        \
+	v->type = vcl_type_u;				                                \
+	AZ(pthread_mutex_unlock(&var_list_mtx));				            \
+}
+
+VMOD_GLOBAL_SET_X(INT, int, VCL_INT)
+VMOD_GLOBAL_SET_X(REAL, real, VCL_REAL)
+VMOD_GLOBAL_SET_X(DURATION, duration, VCL_DURATION)
+VMOD_GLOBAL_SET_X(BOOL, bool, unsigned)
+
+#define VMOD_GLOBAL_GET_X(vcl_type_u, vcl_type_l, ctype)			    \
+ctype									                        \
+vmod_global_get_##vcl_type_l(const struct vrt_ctx *ctx, const char *name)	\
+{									                            \
+	struct var *v;							                    \
+	ctype ret = 0;					                            \
+	if (name == NULL)						                    \
+		return (0);						                        \
+	AZ(pthread_mutex_lock(&var_list_mtx));                      \
+	VTAILQ_FOREACH(v, &global_vars, list) {                     \
+		CHECK_OBJ_NOTNULL(v, VAR_MAGIC);                        \
+		AN(v->name);                                            \
+		if (strcmp(v->name, name) == 0)                         \
+			break;                                              \
+	}                                                           \
+									                            \
+	if (v && v->type == vcl_type_u) 				            \
+		ret = v->value.vcl_type_u;                              \
+    AZ(pthread_mutex_unlock(&var_list_mtx));                    \
+	return ret;					                                \
+}
+
+VMOD_GLOBAL_GET_X(INT, int, VCL_INT)
+VMOD_GLOBAL_GET_X(REAL, real, VCL_REAL)
+VMOD_GLOBAL_GET_X(DURATION, duration, VCL_DURATION)
+VMOD_GLOBAL_GET_X(BOOL, bool, unsigned)
 

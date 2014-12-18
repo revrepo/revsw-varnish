@@ -4,7 +4,7 @@
 #include <ctype.h>
 
 #include "vrt.h"
-#include "bin/varnishd/cache.h"
+#include "cache/cache.h"
 
 #include "vcc_if.h"
 
@@ -57,7 +57,7 @@ void vmod_VSB_base64_encode(struct vsb *s, const char *p, ssize_t len);
  * Add a new log message.
  */
 void
-vmod_log(struct sess *sp, const char *s) {
+vmod_log(const struct  vrt_ctx *ctx, const char *s) {
         int c;
         struct entry *newentry;
 
@@ -66,7 +66,7 @@ vmod_log(struct sess *sp, const char *s) {
 		return;
 	}
 
-        newentry = (struct entry*)WS_Alloc(sp->ws, sizeof(struct entry));
+        newentry = (struct entry*)WS_Alloc(ctx->req->sp->ws, sizeof(struct entry));
 	AN(newentry);
 
         strncpy(newentry->data, s, MAX_DATA);
@@ -81,7 +81,7 @@ vmod_log(struct sess *sp, const char *s) {
  *
  */
 const char * __match_proto__()
-vmod_collect(struct sess *sp) {
+vmod_collect(const struct  vrt_ctx *ctx) {
         struct entry *e;
         struct entry *e2;
 	struct vsb *json;
@@ -89,14 +89,14 @@ vmod_collect(struct sess *sp) {
 	unsigned v, u;
 	char *p;
 
-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
+	CHECK_OBJ_NOTNULL(ctx->req->sp, SESS_MAGIC);
 
         if (VTAILQ_EMPTY(&logentries)) {
                 return NULL;
         }
 
-	u = WS_Reserve(sp->wrk->ws, 0);
-	p = sp->wrk->ws->f;
+	u = WS_Reserve(ctx->req->wrk->aws, 0);
+	p = ctx->req->wrk->aws->f;
 
 	json = VSB_new_auto();
 	AN(json);
@@ -133,10 +133,10 @@ vmod_collect(struct sess *sp) {
 
 	v++;
 	if (v > u) {
-			WS_Release(sp->wrk->ws, 0);
+			WS_Release(ctx->req->wrk->aws, 0);
 			return (NULL);
 	}
-	WS_Release(sp->wrk->ws, v);
+	WS_Release(ctx->req->wrk->aws, v);
 	return (p);
 }
 

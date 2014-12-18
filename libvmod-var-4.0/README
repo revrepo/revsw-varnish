@@ -1,18 +1,19 @@
 This VMOD implements basic variable in VCL. Well. It's more of an
 association list with support for strings, ints and reals.
 
-import var;
-
-sub vcl_recv {
-
-    # count the number of iDevices:
-    if (req.http.user-agent ~ iP(od|ad|hone) ) {
-       	set var.set_int("idevs", var.get_int("i1") + 1 );
-    }
-
 There are methods to get and set each type.
 
+Global variables have a lifespan that extends across requests and
+VCLs, for as long as the vmod is loaded. Non-globals are local to a
+single request.
+
 Prototype, most should be self-explaining:
+
+Function VOID set(STRING, STRING)
+Function STRING get(STRING)
+
+Function VOID global_set(STRING, STRING)
+Function STRING global_get(STRING)
 
 Function VOID set_int(STRING, INT)
 Function INT get_int(STRING)
@@ -28,4 +29,9 @@ Function DURATION get_duration(STRING)
 
 Function VOID clear()
 
-clear() clears the whole variable space.
+clear() clears the whole non-global variable space.
+
+
+VARNISH 4.0 LIMITATION: This VMOD is currently NOT available in the
+following Varnish 4.0 VCL methods: vcl_backend_fetch,
+vcl_backend_response and vcl_backend_error. See github issue #5

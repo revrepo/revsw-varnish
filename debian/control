@@ -8,7 +8,7 @@ Standards-Version: 3.8.1
 
 Package: revsw-varnish-modules
 Architecture: any
-Depends: revsw-varnish (>= 3.0.5), ${Varnish:ABI}, ${misc:Depends}
+Depends: revsw-varnish (>= 4.0.2), ${Varnish:ABI}, ${misc:Depends}
 Description: Various VMODs for Varnish
  Includes: Cookie, Timers, ChromeLogger, Header, Var
 
