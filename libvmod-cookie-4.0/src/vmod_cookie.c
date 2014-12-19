@@ -263,6 +263,47 @@ vmod_filter_except(const struct vrt_ctx *ctx, VCL_STRING whitelist) {
 }
 
 
+VCL_VOID
+vmod_filter_only(const struct vrt_ctx *ctx, VCL_STRING blacklist) {
+        char cookienames[MAX_COOKIEPART][MAXCOOKIES];
+        char tmpstr[MAX_COOKIESTRING];
+        struct cookie *cookie, *tmp;
+        char *tokptr, *saveptr;
+        int i, found = 0, num_cookies = 0;
+        struct vmod_cookie *vcp = cobj_get(ctx);
+        CHECK_OBJ_NOTNULL(vcp, VMOD_COOKIE_MAGIC);
+
+        strcpy(tmpstr, (char *)blacklist);
+        tokptr = strtok_r(tmpstr, ",", &saveptr);
+        if (!tokptr) return;
+
+        // parse the blacklist.
+        while (1) {
+                strcpy(cookienames[num_cookies], tokptr);
+                num_cookies++;
+
+                tokptr = strtok_r(NULL, ",", &saveptr);
+                if (!tokptr) break;
+        }
+
+        // filter existing cookies that are in the blacklist.
+        VTAILQ_FOREACH_SAFE(cookie, &vcp->cookielist, list, tmp) {
+                found = 0;
+                for (i = 0; i < num_cookies; i++) {
+                        if (strlen(cookie->name) == strlen(cookienames[i]) &&
+                            strcmp(cookienames[i], cookie->name) == 0) {
+                                found = 1;
+                                break;
+                        }
+                }
+
+                if (found) {
+                        VTAILQ_REMOVE(&vcp->cookielist, cookie, list);
+                }
+        } // foreach
+}
+
+
 VCL_STRING
 vmod_get_string(const struct vrt_ctx *ctx) {
 	struct cookie *curr;
