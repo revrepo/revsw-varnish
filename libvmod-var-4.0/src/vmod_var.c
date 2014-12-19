@@ -174,6 +174,40 @@ vmod_set_string(const struct vrt_ctx *ctx, VCL_STRING name, VCL_STRING value)
 	v->value.STRING = WS_Copy(ctx->ws, value, -1);
 }
 
+VCL_VOID
+vmod_set_string_allow_null(const struct vrt_ctx *ctx, VCL_STRING name, VCL_STRING value)
+{
+	struct var *v;
+
+	if (name == NULL)
+		return;
+	v = vh_get_var_alloc(get_vh(ctx), name, ctx);
+	AN(v);
+	
+    if (value) {
+        v->type = STRING;
+        v->value.STRING = WS_Copy(ctx->ws, value, -1);
+    }
+}
+
+VCL_VOID
+vmod_set_string_literal(const struct vrt_ctx *ctx, VCL_STRING name, VCL_STRING value)
+{
+	struct var *v;
+
+	if (name == NULL)
+		return;
+	v = vh_get_var_alloc(get_vh(ctx), name, ctx);
+	AN(v);
+	
+	v->type = STRING;
+	if (value == NULL)
+		value = "";
+    /* 'value' is a constant, literal string which is "allocated" at compile time.
+     * Don't need to dup it.
+     */
+	v->value.STRING = (char *)value;
+}
 VCL_STRING
 vmod_get_string(const struct vrt_ctx *ctx, VCL_STRING name)
 {
@@ -224,6 +258,48 @@ VMOD_GET_X(INT, int, VCL_INT)
 VMOD_GET_X(REAL, real, VCL_REAL)
 VMOD_GET_X(DURATION, duration, VCL_DURATION)
 VMOD_GET_X(BOOL, bool, unsigned)
+
+unsigned
+vmod_and_or_set_bool(const struct vrt_ctx *ctx, VCL_STRING name, unsigned value)
+{
+	struct var *v;
+	if (name == NULL)
+		return 0;
+	v = vh_get_var_alloc(get_vh(ctx), name, ctx);
+	if (!v) {
+		
+		AN(v);
+		
+		v->type = BOOL;
+		v->value.BOOL = value;
+	} else {
+		if (v->type != BOOL)
+			return 0;
+		v->value.BOOL = v->value.BOOL && value;
+	}
+	return v->value.BOOL;
+}
+
+unsigned
+vmod_or_or_set_bool(const struct vrt_ctx *ctx, VCL_STRING name, unsigned value)
+{
+	struct var *v;
+	if (name == NULL)
+		return 0;
+	v = vh_get_var_alloc(get_vh(ctx), name, ctx);
+	if (!v) {
+		
+		AN(v);
+		
+		v->type = BOOL;
+		v->value.BOOL = value;
+	} else {
+		if (v->type != BOOL)
+			return 0;
+		v->value.BOOL = v->value.BOOL || value;
+	}
+	return v->value.BOOL;
+}
 
 VCL_VOID
 vmod_clear(const struct vrt_ctx *ctx)
