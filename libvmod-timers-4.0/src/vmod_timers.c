@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 #include "vrt.h"
-#include "bin/varnishd/cache.h"
+#include "cache/cache.h"
 
 #include "vcc_if.h"
 
@@ -16,7 +16,7 @@
 #endif
 
 /*  XXX This is all true for varnish 3.0.3 - the varnish 3 BRANCH is already structured,
-    differently. Especially the session struct has changed, with more data moving into
+    differently. Ectx->req->specially the session struct has changed, with more data moving into
     the request struct instead :(
 
     //*************************
@@ -46,7 +46,7 @@
 
     The fifth number (0.000022888) is the time elapsed from the start of the request
     processing until we start delivering the object to the client. For all practical
-    purposes, this number is the backend response time.
+    purposes, this number is the backend rectx->req->sponse time.
 
     The sixth and last number (0.000025988) is the time from we start delivering the
     object until the request completes.
@@ -57,12 +57,12 @@
 
     From varnish-3.0.3:./bin/varnishd/cache_center.c:348
 
-    dp = sp->t_resp - sp->t_req;
-    da = sp->t_end - sp->t_resp;
-    dh = sp->t_req - sp->t_open;
+    dp = ctx->req->sp->t_rectx->req->sp - ctx->req->sp->t_req;
+    da = ctx->req->sp->t_end - ctx->req->sp->t_rectx->req->sp;
+    dh = ctx->req->sp->t_req - ctx->req->sp->t_open;
 
-    WSL(sp->wrk, SLT_ReqEnd, sp->id, "%u %.9f %.9f %.9f %.9f %.9f",
-        sp->xid, sp->t_req, sp->t_end, dh, dp, da);
+    WSL(ctx->req->sp->wrk, SLT_ReqEnd, ctx->req->sp->id, "%u %.9f %.9f %.9f %.9f %.9f",
+        ctx->req->sp->xid, ctx->req->sp->t_req, ctx->req->sp->t_end, dh, dp, da);
 
     The session struct is documented in: varnish-3.0.3:./bin/varnishd/cache.h:524
     Important parts:
@@ -73,7 +73,7 @@
         // Timestamps, all on TIM_real() timescale
         double                  t_open;
         double                  t_req;
-        double                  t_resp;
+        double                  t_rectx->req->sp;
         double                  t_end;
 
 */
@@ -105,7 +105,7 @@ init_function(struct vmod_priv *priv, const struct VCL_conf *conf)
 
 // Set the multiplication factor
 void
-vmod_unit( struct sess *sp, struct vmod_priv *priv, const char *unit ) {
+vmod_unit( const struct vrt_ctx *ctx, struct vmod_priv *priv, const char *unit ) {
     config_t *cfg   = priv->priv;
 
     cfg->multiplier =
@@ -121,14 +121,14 @@ vmod_unit( struct sess *sp, struct vmod_priv *priv, const char *unit ) {
 // **********************
 
 // VCL doesn't let you do math - simple addition function
-int
-vmod_add( struct sess *sp, int i, int j ) {
+VCL_INT
+vmod_add( const struct vrt_ctx *ctx, VCL_INT i, VCL_INT j ) {
     return i + j;
 }
 
 // VCL doesn't let you do math - simple subtraction function
-int
-vmod_subtract( struct sess *sp, int i, int j ) {
+VCL_INT
+vmod_subtract( const struct vrt_ctx *ctx, VCL_INT i, VCL_INT j ) {
     return i - j;
 }
 
@@ -137,22 +137,22 @@ vmod_subtract( struct sess *sp, int i, int j ) {
 // **********************
 
 // Timestamp of when the request started
-double
-vmod_req_start( struct sess *sp, struct vmod_priv *priv ) {
-    return (double) sp->t_req;
+VCL_REAL
+vmod_req_start( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
+    return (double) ctx->req->t_req;
 }
 
 // Timestamp of when the request started as a string representation.
 // Varnish will represent the result differently by the type we use in the .vcc
-double vmod_req_start_as_string() __attribute__((alias("vmod_req_start")));
+VCL_REAL vmod_req_start_as_string() __attribute__((alias("vmod_req_start")));
 
 
 // Timestamp of when the request finished
-double
-vmod_req_end( struct sess *sp, struct vmod_priv *priv ) {
+VCL_REAL
+vmod_req_end( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
     config_t *cfg   = priv->priv;
 
-    return (double) sp->t_end;
+    return (double) ctx->req->sp->t_idle;
 }
 
 // Timestamp of when the request started as a string representation.
@@ -165,22 +165,22 @@ double vmod_req_end_as_string() __attribute__((alias("vmod_req_end")));
 // **********************
 
 // Duration of Accept -> Sent to backend.
-int
-vmod_req_handle_time( struct sess *sp, struct vmod_priv *priv ) {
+VCL_INT
+vmod_req_handle_time( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
     config_t *cfg   = priv->priv;
 
-    return (int) ((sp->t_req - sp->t_open) * cfg->multiplier);
+    return (int) ((ctx->req->t_req - ctx->req->sp->t_open) * cfg->multiplier);
 }
 
 // Duration of Sent to Backend -> First byte.
-int
-vmod_req_response_time( struct sess *sp, struct vmod_priv *priv ) {
+VCL_INT
+vmod_req_response_time( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
     config_t *cfg   = priv->priv;
 
-    // The response may not have been sent yet (say you're calling this
+    // The rectx->req->sponse may not have been sent yet (say you're calling this
     // from vcl_recv) - Return -1 in that case.
 
-    int rv = (int) ((sp->t_resp - sp->t_req) * cfg->multiplier);
+    int rv = (int) ((ctx->req->t_prev - ctx->req->t_req) * cfg->multiplier);
     return rv >= 0 ? rv : -1;
 }
 
@@ -190,13 +190,13 @@ vmod_req_response_time( struct sess *sp, struct vmod_priv *priv ) {
 // meaning this will always return -1. I'm leaving it here for completeness
 // sake, and it may become useful if there appears a vcl hook for after last
 // byte.
-int
-vmod_req_delivery_time( struct sess *sp, struct vmod_priv *priv ) {
+VCL_INT
+vmod_req_delivery_time( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
     config_t *cfg   = priv->priv;
 
-    // The response may not have been sent yet (say you're calling this
+    // The rectx->req->sponse may not have been sent yet (say you're calling this
     // from vcl_recv) - Return -1 in that case.
 
-    int rv = (int) ((sp->t_end - sp->t_resp) * cfg->multiplier);
+    int rv = (int) ((ctx->req->sp->t_idle - ctx->req->t_prev) * cfg->multiplier);
     return rv >= 0 ? rv : -1;
 }
