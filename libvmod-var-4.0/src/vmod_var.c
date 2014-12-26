@@ -84,10 +84,7 @@ vh_get_var_alloc(struct var_head *vh, const char *name, const struct vrt_ctx *ct
 		v->name = WS_Copy(ctx->ws, name, -1);
 		AN(v->name);
 		VTAILQ_INSERT_HEAD(&vh->vars, v, list);
-	
 	}
-		
-
 	return v;
 }
 
@@ -183,7 +180,7 @@ vmod_set_string_allow_null(const struct vrt_ctx *ctx, VCL_STRING name, VCL_STRIN
 		return;
 	v = vh_get_var_alloc(get_vh(ctx), name, ctx);
 	AN(v);
-	
+
     if (value) {
         v->type = STRING;
         v->value.STRING = WS_Copy(ctx->ws, value, -1);
@@ -199,7 +196,7 @@ vmod_set_string_literal(const struct vrt_ctx *ctx, VCL_STRING name, VCL_STRING v
 		return;
 	v = vh_get_var_alloc(get_vh(ctx), name, ctx);
 	AN(v);
-	
+
 	v->type = STRING;
 	if (value == NULL)
 		value = "";
@@ -237,7 +234,7 @@ vmod_set_##vcl_type_l(const struct vrt_ctx *ctx, const char *name, ctype value) 
 VMOD_SET_X(INT, int, VCL_INT)
 VMOD_SET_X(REAL, real, VCL_REAL)
 VMOD_SET_X(DURATION, duration, VCL_DURATION)
-VMOD_SET_X(BOOL, bool, unsigned)
+VMOD_SET_X(BOOL, bool, VCL_BOOL)
 
 #define VMOD_GET_X(vcl_type_u, vcl_type_l, ctype) \
 ctype \
@@ -257,19 +254,19 @@ vmod_get_##vcl_type_l(const struct vrt_ctx *ctx, const char *name) \
 VMOD_GET_X(INT, int, VCL_INT)
 VMOD_GET_X(REAL, real, VCL_REAL)
 VMOD_GET_X(DURATION, duration, VCL_DURATION)
-VMOD_GET_X(BOOL, bool, unsigned)
+VMOD_GET_X(BOOL, bool, VCL_BOOL)
 
-unsigned
-vmod_and_or_set_bool(const struct vrt_ctx *ctx, VCL_STRING name, unsigned value)
+VCL_BOOL
+vmod_and_or_set_bool(const struct vrt_ctx *ctx, VCL_STRING name, VCL_BOOL value)
 {
 	struct var *v;
 	if (name == NULL)
 		return 0;
 	v = vh_get_var_alloc(get_vh(ctx), name, ctx);
 	if (!v) {
-		
+
 		AN(v);
-		
+
 		v->type = BOOL;
 		v->value.BOOL = value;
 	} else {
@@ -280,17 +277,17 @@ vmod_and_or_set_bool(const struct vrt_ctx *ctx, VCL_STRING name, unsigned value)
 	return v->value.BOOL;
 }
 
-unsigned
-vmod_or_or_set_bool(const struct vrt_ctx *ctx, VCL_STRING name, unsigned value)
+VCL_BOOL
+vmod_or_or_set_bool(const struct vrt_ctx *ctx, VCL_STRING name, VCL_BOOL value)
 {
 	struct var *v;
 	if (name == NULL)
 		return 0;
 	v = vh_get_var_alloc(get_vh(ctx), name, ctx);
 	if (!v) {
-		
+
 		AN(v);
-		
+
 		v->type = BOOL;
 		v->value.BOOL = value;
 	} else {
@@ -399,7 +396,7 @@ vmod_global_set_##vcl_type_l(const struct vrt_ctx *ctx, const char *name, ctype 
 VMOD_GLOBAL_SET_X(INT, int, VCL_INT)
 VMOD_GLOBAL_SET_X(REAL, real, VCL_REAL)
 VMOD_GLOBAL_SET_X(DURATION, duration, VCL_DURATION)
-VMOD_GLOBAL_SET_X(BOOL, bool, unsigned)
+VMOD_GLOBAL_SET_X(BOOL, bool, VCL_BOOL)
 
 #define VMOD_GLOBAL_GET_X(vcl_type_u, vcl_type_l, ctype)			    \
 ctype									                        \
@@ -426,5 +423,5 @@ vmod_global_get_##vcl_type_l(const struct vrt_ctx *ctx, const char *name)	\
 VMOD_GLOBAL_GET_X(INT, int, VCL_INT)
 VMOD_GLOBAL_GET_X(REAL, real, VCL_REAL)
 VMOD_GLOBAL_GET_X(DURATION, duration, VCL_DURATION)
-VMOD_GLOBAL_GET_X(BOOL, bool, unsigned)
+VMOD_GLOBAL_GET_X(BOOL, bool, VCL_BOOL)
 
