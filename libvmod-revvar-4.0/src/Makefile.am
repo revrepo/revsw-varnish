@@ -1,17 +1,17 @@
 AM_CPPFLAGS = @VMOD_INCLUDES@
 
 vmoddir = @VMOD_DIR@
-vmod_LTLIBRARIES = libvmod_var.la
+vmod_LTLIBRARIES = libvmod_revvar.la
 
-libvmod_var_la_LDFLAGS = -module -export-dynamic -avoid-version -shared
+libvmod_revvar_la_LDFLAGS = -module -export-dynamic -avoid-version -shared
 
-libvmod_var_la_SOURCES = \
+libvmod_revvar_la_SOURCES = \
 	vcc_if.c \
 	vcc_if.h \
-	vmod_var.c
+	vmod_revvar.c
 
-vcc_if.c vcc_if.h: @VMODTOOL@ $(top_srcdir)/src/vmod_var.vcc
-	@VMODTOOL@ $(top_srcdir)/src/vmod_var.vcc
+vcc_if.c vcc_if.h: @VMODTOOL@ $(top_srcdir)/src/vmod_revvar.vcc
+	@VMODTOOL@ $(top_srcdir)/src/vmod_revvar.vcc
 
 VMOD_TESTS =  $(top_srcdir)/src/tests/*.vtc
 .PHONY: $(VMOD_TESTS)
@@ -22,7 +22,7 @@ $(top_srcdir)/src/tests/*.vtc:
 check: $(VMOD_TESTS)
 
 EXTRA_DIST = \
-	vmod_var.vcc \
+	vmod_revvar.vcc \
 	$(VMOD_TESTS)
 
 CLEANFILES = $(builddir)/vcc_if.c $(builddir)/vcc_if.h
