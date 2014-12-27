@@ -1,3 +1,9 @@
+revsw-varnish-modules (0.5) unstable; urgency=medium
+
+  * Varnish 4 VMODs.
+
+ -- Sorin Otescu <sorin@revsw.com>  Sat, 27 Dec 2014 12:18:02 +0200
+
 revsw-varnish-modules (0.4-1) unstable; urgency=medium
 
   * Added global version for get/set int, bool, real and duration.
