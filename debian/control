@@ -3,19 +3,23 @@ Section: web
 Priority: extra
 Maintainer: Sorin Otescu <sorin@revsw.com>
 Build-Depends: debhelper (>= 7), build-essential, python-docutils,
- revsw-libvarnishapi-dev
-Built-Using: revsw-varnish (= 4.0.2)
+ revsw-libvarnish4api-dev (>= 4.0.2)
+Built-Using: revsw-varnish4 (= 4.0.2)
 Standards-Version: 3.8.1
 
-Package: revsw-varnish-modules
+Package: revsw-varnish4-modules
 Architecture: any
-Depends: revsw-varnish (>= 4.0.2), ${Varnish:ABI}, ${misc:Depends}
+Depends: revsw-varnish4 (>= 4.0.2), ${Varnish:ABI}, ${misc:Depends}
+Conflicts: revsw-varnish-modules
+Replaces: revsw-varnish-modules
 Description: Various VMODs for Varnish
  Includes: Cookie, Timers, ChromeLogger, Header, Var
 
-Package: revsw-varnish-modules-dbg
+Package: revsw-varnish4-modules-dbg
 Architecture: any
-Depends: revsw-varnish-modules (= ${binary:Version}),
+Depends: revsw-varnish4-modules (= ${binary:Version}),
          ${misc:Depends}
+Conflicts: revsw-varnish-modules-dbg
+Replaces: revsw-varnish-modules-dbg
 Description: Various VMODs for Varnish (debug symbols)
  Includes: Cookie, Timers, ChromeLogger, Header, Var
