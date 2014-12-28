@@ -1,4 +1,4 @@
-Source: revsw-varnish-modules
+Source: revsw-varnish4-modules
 Section: web
 Priority: extra
 Maintainer: Sorin Otescu <sorin@revsw.com>

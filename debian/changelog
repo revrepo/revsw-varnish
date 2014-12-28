@@ -1,36 +1,36 @@
-revsw-varnish-modules (0.5) unstable; urgency=medium
+revsw-varnish4-modules (0.5) unstable; urgency=medium
 
   * Varnish 4 VMODs.
 
  -- Sorin Otescu <sorin@revsw.com>  Sat, 27 Dec 2014 12:18:02 +0200
 
-revsw-varnish-modules (0.4-1) unstable; urgency=medium
+revsw-varnish4-modules (0.4-1) unstable; urgency=medium
 
   * Added global version for get/set int, bool, real and duration.
 
  -- Sorin Otescu <sorin@revsw.com>  Wed, 08 Oct 2014 17:56:02 +0300
 
-revsw-varnish-modules (0.4) unstable; urgency=medium
+revsw-varnish4-modules (0.4) unstable; urgency=medium
 
   * Added 'chromelogger' and 'query' VMODs.
   * Added debug package.
 
  -- Sorin Otescu <sorin@revsw.com>  Tue, 30 Sep 2014 21:03:23 +0300
 
-revsw-varnish-modules (0.3-6) unstable; urgency=medium
+revsw-varnish4-modules (0.3-6) unstable; urgency=medium
 
   * Fixed crash in 'var' VMOD.
   * Added 'set_string_allow_null' to 'var' VMOD.
 
  -- Sorin Otescu <sorin@revsw.com>  Thu, 28 Aug 2014 20:30:51 +0300
 
-revsw-varnish-modules (0.3-5) unstable; urgency=medium
+revsw-varnish4-modules (0.3-5) unstable; urgency=medium
 
   * Functions using BOOL now really use BOOL (not INT).
 
  -- Sorin Otescu <sorin@revsw.com>  Mon, 25 Aug 2014 12:44:16 +0300
 
-revsw-varnish-modules (0.3-4) unstable; urgency=medium
+revsw-varnish4-modules (0.3-4) unstable; urgency=medium
 
   * Added 'header' VMOD.
   * Added 'unset', 'set_string_literal' and 'string_set_is_empty'
@@ -38,46 +38,46 @@ revsw-varnish-modules (0.3-4) unstable; urgency=medium
 
  -- Sorin Otescu <sorin@revsw.com>  Thu, 21 Aug 2014 15:07:36 +0300
 
-revsw-varnish-modules (0.3-3) unstable; urgency=medium
+revsw-varnish4-modules (0.3-3) unstable; urgency=medium
 
   * Switched to Varnish-based allocator, allocating memory from 
     session allocator.
 
  -- Sorin Otescu <sorin@revsw.com>  Wed, 20 Aug 2014 15:48:04 +0300
 
-revsw-varnish-modules (0.3-2) unstable; urgency=medium
+revsw-varnish4-modules (0.3-2) unstable; urgency=medium
 
   * Added 'new_string_set', 'add_to_string_set', 'del_from_string_set'
     and 'get_string_set_as_csv' to 'var' VMOD.
 
  -- Sorin Otescu <sorin@revsw.com>  Wed, 13 Aug 2014 16:27:55 +0300
 
-revsw-varnish-modules (0.3-1) unstable; urgency=medium
+revsw-varnish4-modules (0.3-1) unstable; urgency=medium
 
   * Added 'set_bool' 'get_bool', 'and_or_set_bool' and 'or_or_set_bool' 
     to 'var' VMOD.
 
  -- Sorin Otescu <sorin@revsw.com>  Tue, 12 Aug 2014 11:40:51 +0300
 
-revsw-varnish-modules (0.3) unstable; urgency=medium
+revsw-varnish4-modules (0.3) unstable; urgency=medium
 
   * Added 'var' VMOD.
 
  -- Sorin Otescu <sorin@revsw.com>  Fri, 08 Aug 2014 12:26:34 -0700
 
-revsw-varnish-modules (0.2-1) unstable; urgency=medium
+revsw-varnish4-modules (0.2-1) unstable; urgency=medium
 
   * Build-depend on python-docutils.
 
  -- Sorin Otescu <sorin@revsw.com>  Mon, 18 Aug 2014 18:53:45 +0300
 
-revsw-varnish-modules (0.2) unstable; urgency=low
+revsw-varnish4-modules (0.2) unstable; urgency=low
 
   * Added 'filter_only' to 'cookies' module.
 
  -- Sorin Otescu <sorin@revsw.com>  Thu, 07 Aug 2014 16:52:01 -0700
 
-revsw-varnish-modules (0.1) unstable; urgency=low
+revsw-varnish4-modules (0.1) unstable; urgency=low
 
   * First version
 
