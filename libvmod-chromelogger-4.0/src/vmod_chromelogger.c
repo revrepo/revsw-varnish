@@ -41,11 +41,10 @@ enum type_e {
     TABLE
 };
 
-
 struct entry {
 	char data[MAX_DATA];
-        char backtrace[MAX_BT];
-        enum type_e type;
+    char backtrace[MAX_BT];
+    enum type_e type;
 	VTAILQ_ENTRY(entry) list;
 };
 VTAILQ_HEAD(, entry) logentries = VTAILQ_HEAD_INITIALIZER(logentries);
@@ -57,22 +56,21 @@ void vmod_VSB_base64_encode(struct vsb *s, const char *p, ssize_t len);
  * Add a new log message.
  */
 void
-vmod_log(const struct  vrt_ctx *ctx, const char *s) {
-        int c;
-        struct entry *newentry;
+vmod_log(const struct vrt_ctx *ctx, const char *s) {
+    int c;
+    struct entry *newentry;
 
         // Ignore empty lines
-	if (strlen(s) == 0) {
+	if (strlen(s) == 0)
 		return;
-	}
 
-        newentry = (struct entry*)WS_Alloc(ctx->req->sp->ws, sizeof(struct entry));
+    newentry = (struct entry*)WS_Alloc(ctx->ws, sizeof(struct entry));
 	AN(newentry);
 
-        strncpy(newentry->data, s, MAX_DATA);
-        newentry->data[MAX_DATA-1] = '\0';
-        strcpy(newentry->backtrace, "FIXME");
-        newentry->type = LOG;
+    strncpy(newentry->data, s, MAX_DATA);
+    newentry->data[MAX_DATA-1] = '\0';
+    strcpy(newentry->backtrace, "FIXME");
+    newentry->type = LOG;
 
 	VTAILQ_INSERT_TAIL(&logentries, newentry, list);
 }
@@ -82,8 +80,8 @@ vmod_log(const struct  vrt_ctx *ctx, const char *s) {
  */
 const char * __match_proto__()
 vmod_collect(const struct  vrt_ctx *ctx) {
-        struct entry *e;
-        struct entry *e2;
+    struct entry *e;
+    struct entry *e2;
 	struct vsb *json;
 	struct vsb *output;
 	unsigned v, u;
@@ -91,12 +89,11 @@ vmod_collect(const struct  vrt_ctx *ctx) {
 
 	CHECK_OBJ_NOTNULL(ctx->req->sp, SESS_MAGIC);
 
-        if (VTAILQ_EMPTY(&logentries)) {
-                return NULL;
-        }
+    if (VTAILQ_EMPTY(&logentries))
+        return NULL;
 
-	u = WS_Reserve(ctx->req->wrk->aws, 0);
-	p = ctx->req->wrk->aws->f;
+	u = WS_Reserve(ctx->ws, 0);
+	p = ctx->ws->f;
 
 	json = VSB_new_auto();
 	AN(json);
@@ -113,16 +110,16 @@ vmod_collect(const struct  vrt_ctx *ctx) {
                 VSB_cat(json, "\"],");
 		VTAILQ_REMOVE(&logentries, e, list);
 	}
-        // Remove last comma
-        json->s_len--;
+    // Remove last comma
+    json->s_len--;
 	VSB_cat(json, "]}");
 	VSB_finish(json);
 
-        // Base64 encode
+    // Base64 encode
 	output = VSB_new_auto();
 	AN(output);
 
-        vmod_VSB_base64_encode(output, VSB_data(json), VSB_len(json));
+    vmod_VSB_base64_encode(output, VSB_data(json), VSB_len(json));
 	VSB_finish(output);
 
 	v = VSB_len(output);
@@ -133,10 +130,10 @@ vmod_collect(const struct  vrt_ctx *ctx) {
 
 	v++;
 	if (v > u) {
-			WS_Release(ctx->req->wrk->aws, 0);
-			return (NULL);
+        WS_Release(ctx->ws, 0);
+        return (NULL);
 	}
-	WS_Release(ctx->req->wrk->aws, v);
+	WS_Release(ctx->ws, v);
 	return (p);
 }
 
@@ -182,31 +179,31 @@ vmod_VSB_quote_real(struct vsb *s, const char *p)
 
 void
 vmod_VSB_base64_encode(struct vsb *s, const char *p, ssize_t len) {
-        const static char* b64="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        ssize_t i;
+    const static char* b64="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    ssize_t i;
 
-        if (len == -1) {
-                len = strlen(p);
-        }
+    if (len == -1) {
+        len = strlen(p);
+    }
 
-        for (i = 0; i < len - 2; i += 3) {
-                VSB_putc(s, b64[p[i] >> 2]);
-                VSB_putc(s, b64[((0x3 & p[i]) << 4) + (p[i+1] >> 4)]);
-                VSB_putc(s, b64[((0xf & p[i+1]) << 2) + (p[i+2] >> 6)]);
-                VSB_putc(s, b64[0x3f & p[i+2]]);
-        }
+    for (i = 0; i < len - 2; i += 3) {
+        VSB_putc(s, b64[p[i] >> 2]);
+        VSB_putc(s, b64[((0x3 & p[i]) << 4) + (p[i+1] >> 4)]);
+        VSB_putc(s, b64[((0xf & p[i+1]) << 2) + (p[i+2] >> 6)]);
+        VSB_putc(s, b64[0x3f & p[i+2]]);
+    }
 
-        if (len % 3 == 2) {
-                VSB_putc(s, b64[p[i] >> 2]);
-                VSB_putc(s, b64[((0x3 & p[i]) << 4) + (p[i+1] >> 4)]);
-                VSB_putc(s, b64[((0xf & p[i+1]) << 2)]);
-                VSB_putc(s, '=');
-        }
+    if (len % 3 == 2) {
+        VSB_putc(s, b64[p[i] >> 2]);
+        VSB_putc(s, b64[((0x3 & p[i]) << 4) + (p[i+1] >> 4)]);
+        VSB_putc(s, b64[((0xf & p[i+1]) << 2)]);
+        VSB_putc(s, '=');
+    }
 
-        if (len % 3 == 1) {
-                VSB_putc(s, b64[p[i] >> 2]);
-                VSB_putc(s, b64[((0x3 & p[i]) << 4)]);
-                VSB_putc(s, '=');
-                VSB_putc(s, '=');
-        }
+    if (len % 3 == 1) {
+        VSB_putc(s, b64[p[i] >> 2]);
+        VSB_putc(s, b64[((0x3 & p[i]) << 4)]);
+        VSB_putc(s, '=');
+        VSB_putc(s, '=');
+    }
 }
