@@ -1,5 +1,4 @@
 $Module revvar 3 RevSW Variable VMOD for Varnish
-$Init init_function
 
 # Set the number of variables to use
 $Function VOID init_var_count(INT)

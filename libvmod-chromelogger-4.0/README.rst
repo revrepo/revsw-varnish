@@ -20,9 +20,15 @@ SYNOPSIS
                     chromelogger.log("So long, and thanks for all the fish");
                 }
 
+                sub vcl_backend_response {
+                    ### Collect backend-related entries into a temporary header
+                    set resp.http.X-ChromeLogger-BEData = chromelogger.collect_partial();
+                }
+
                 sub vcl_deliver {
                     ### Collect and encode all log entries
-                    set resp.http.X-ChromeLogger-Data = chromelogger.collect();
+                    set resp.http.X-ChromeLogger-Data = chromelogger.collect(resp.http.X-ChromeLogger-BEData);
+                    unset resp.http.X-ChromeLogger-BEData;
                 }
 
 

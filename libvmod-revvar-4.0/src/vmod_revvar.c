@@ -73,12 +73,6 @@ _get_var(const struct vrt_ctx *ctx, VCL_BOOL from_req, VCL_INT idx)
 	return NULL;
 }
 
-int
-init_function(struct vmod_priv *priv, const struct VCL_conf *conf)
-{
-	return 0;
-}
-
 static struct var_array *
 _alloc_var_array(struct ws *ws, unsigned count, VCL_BOOL zero_out)
 {

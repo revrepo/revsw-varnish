@@ -30,15 +30,14 @@ A convenience function for formatting the Set-Cookie Expires date field
 is also included. It might be needed to use libvmod-header if there might
 be multiple Set-Cookie response headers.
 
-This vmod allocates memory on the session workspace. It needs twice
-the memory requirement of your cookie string, usually less than 2KB.
-If you have many long cookies, or use other vmods that use the same memory
-segment, you might need to increase the sess_workspace parameter.
-
 Only within a single VMOD call is the state set by cookie.parse() /
 cookie.set() guaranteed to persist. This VMOD was designed to be used
 for cleaning up a request in vcl_recv, but works outside recv if needed.
 In such a case it is necessary to run cookie.parse() again.
+
+It is currently not safe/tested to call this VMOD in any fetch threads.
+Do the filtering in recv, fix up anything going in in deliver. Running it
+in vcl_backend_fetch and similar is untested and has undefined results.
 
 
 FUNCTIONS
@@ -248,20 +247,12 @@ using the varnishtest tool.
 
 Usage::
 
- ./configure VARNISHSRC=DIR [VMODDIR=DIR]
-
-`VARNISHSRC` is the directory of the Varnish source tree for which to
-compile your vmod. Both the `VARNISHSRC` and `VARNISHSRC/include`
-will be added to the include search paths for your module.
-
-Optionally you can also set the vmod install directory by adding
-`VMODDIR=DIR` (defaults to the pkg-config discovered directory from your
-Varnish installation).
+ ./configure --prefix=/usr
 
 Make targets:
 
 * make - builds the vmod
-* make install - installs the vmod in `VMODDIR`
+* make install - installs the vmod.
 * make check - runs the unit tests in ``src/tests/*.vtc``
 
 In your VCL you could then use this vmod along the following lines::
@@ -274,12 +265,6 @@ In your VCL you could then use this vmod along the following lines::
 	}
 
 
-HISTORY
-=======
-
-This manual page was released as part of the libvmod-example package,
-demonstrating how to create an out-of-tree Varnish vmod.
-
 COPYRIGHT
 =========
 
@@ -287,3 +272,4 @@ This document is licensed under the same license as the
 libvmod-example project. See LICENSE for details.
 
 * Copyright (c) 2011-2013 Varnish Software
+* Copyright (c) 2013-2014 Lasse Karstensen

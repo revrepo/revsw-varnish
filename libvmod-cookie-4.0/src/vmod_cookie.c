@@ -10,18 +10,23 @@ Author: Lasse Karstensen <lasse@varnish-software.com>, July 2012.
 #include <stdio.h>
 
 #include "vrt.h"
+#include "vqueue.h"
 #include "cache/cache.h"
 
 #include "vcc_if.h"
 
-#define MAX_COOKIEPART 1024   /* name or value maxsize */
-#define MAX_COOKIESTRING 8196 /* cookie string maxlength */
-#define MAXCOOKIES 100
+#define MAX_COOKIE_NAME 1024   /* name maxsize */
+#define MAX_COOKIE_STRING 4096 /* cookie string maxlength */
 
 struct cookie {
 	char *name;
 	char *value;
 	VTAILQ_ENTRY(cookie) list;
+};
+
+struct whitelist {
+	char name[MAX_COOKIE_NAME];
+	VTAILQ_ENTRY(whitelist) list;
 };
 
 struct vmod_cookie {
@@ -56,20 +61,28 @@ static struct vmod_cookie *
 cobj_get(const struct vrt_ctx *ctx) {
 	struct vmod_cookie *vcp = pthread_getspecific(key);
 
-	if (!vcp) {
+    /*
+     * SORIN: don't use req->sp->vxid because it's not reliable (repeated values).
+     * Use the log wid instead (the "2" in "*   << Request  >> 2" in varnishlog).
+     */
+
+    if (!vcp) {
 		vcp = malloc(sizeof *vcp);
 		AN(vcp);
 		cobj_clear(vcp);
-		vcp->xid = ctx->req->sp->vxid;
+		vcp->xid = ctx->req->vsl[0].wid;
 		AZ(pthread_setspecific(key, vcp));
+        VSLb(ctx->vsl, SLT_Debug, "cookie: new XID %u", vcp->xid);
 	}
 
 	CHECK_OBJ_NOTNULL(vcp, VMOD_COOKIE_MAGIC);
 
-	if (vcp->xid != ctx->req->sp->vxid) {
+	if (vcp->xid != ctx->req->vsl[0].wid) {
+        VSLb(ctx->vsl, SLT_Debug, "cookie: reusing entry for XID %u; new XID %u",
+             vcp->xid, ctx->req->vsl[0].wid);
 		// Reuse previously allocated storage
 		cobj_clear(vcp);
-		vcp->xid = ctx->req->sp->vxid;
+		vcp->xid = ctx->req->vsl[0].wid;
 	}
 
 	return (vcp);
@@ -77,29 +90,29 @@ cobj_get(const struct vrt_ctx *ctx) {
 
 VCL_VOID
 vmod_parse(const struct vrt_ctx *ctx, VCL_STRING cookieheader) {
-	char tokendata[MAX_COOKIESTRING];
-	char *token, *tokstate, *key, *value, *sepindex;
-	char *dataptr = tokendata;
 	struct vmod_cookie *vcp = cobj_get(ctx);
 	CHECK_OBJ_NOTNULL(vcp, VMOD_COOKIE_MAGIC);
 
-	struct cookie *newcookie;
+	char tokendata[MAX_COOKIE_STRING];
+	char *token, *tokstate, *value, *sepindex, *dataptr;
 
 	int i = 0;
 
-	// If called twice during the same request, clean out old state
-	// before proceeding.
-	while (!VTAILQ_EMPTY(&vcp->cookielist)) {
-		newcookie = VTAILQ_FIRST(&vcp->cookielist);
-		VTAILQ_REMOVE(&vcp->cookielist, newcookie, list);
-	}
+    VSLb(ctx->vsl, SLT_Debug, "cookie: parse for XID %u", ctx->req->vsl[0].wid);
+    VSL_Flush(ctx->vsl, 0);
+
+    /* If called twice during the same request, clean out old state */
+	vmod_clean(ctx);
+
+	VSLb(ctx->vsl, SLT_Debug, "cookie: cookie string is %lu bytes.", strlen(cookieheader));
 
 	if (cookieheader == NULL || strlen(cookieheader) == 0) {
-		VSL(SLT_VCL_Log, 0, "cookie-vmod: nothing to parse");
+		VSLb(ctx->vsl, SLT_VCL_Log, "cookie: nothing to parse");
 		return;
+	}
 
-	if (strlen(cookieheader)+1 >= MAX_COOKIESTRING)
-		VSL(SLT_VCL_Log, 0, "cookie-vmod: cookie string overflowed, abort");
+	if (strlen(cookieheader) >= MAX_COOKIE_STRING) {
+		VSLb(ctx->vsl, SLT_VCL_Log, "cookie: cookie string overflowed, abort");
 		return;
 	}
 
@@ -111,44 +124,47 @@ vmod_parse(const struct vrt_ctx *ctx, VCL_STRING cookieheader) {
 		token = strtok_r(dataptr, ";", &tokstate);
 		dataptr = NULL; /* strtok() wants NULL on subsequent calls. */
 
-		if (token == NULL) break;
-		while (token[0] == ' ') token++;
-		//printf("token is: %s\n", token);
+		if (token == NULL)
+		    break;
+
+		while (token[0] == ' ')
+		    token++;
 
 		sepindex = strchr(token, '=');
 		if (sepindex == NULL) {
-			// could not find delimiter, this cookie is invalid. skip to the
-			// next (if any)
+			/* No delimiter, this cookie is invalid. Next! */
 			continue;
 		}
 		value = sepindex + 1;
 		*sepindex = '\0';
 
+		VSLb(ctx->vsl, SLT_Debug, "value length is %lu.", strlen(value));
 		vmod_set(ctx, token, value);
 		i++;
 	}
-
-	VSL(SLT_VCL_Log, 0, "libvmod-cookie: parsed %i cookies.", i);
+	VSLb(ctx->vsl, SLT_VCL_Log, "cookie: parsed %i cookies.", i);
 }
 
 
 VCL_VOID
 vmod_set(const struct vrt_ctx *ctx, VCL_STRING name, VCL_STRING value) {
-	struct cookie *newcookie;
 	struct vmod_cookie *vcp = cobj_get(ctx);
 	CHECK_OBJ_NOTNULL(vcp, VMOD_COOKIE_MAGIC);
 
-	// Empty cookies should be ignored.
+	AN(name);
+	AN(value);
+
+	/* Empty cookies should be ignored. */
 	if (strlen(name) == 0 || strlen(value) == 0) {
 		return;
 	}
 
-	if (strlen(name)+1 >= MAX_COOKIEPART) {
-		VSL(SLT_Debug, 0, "cookie-vmod: cookie string overflowed, abort");
+	if (strlen(name) + 1 >= MAX_COOKIE_NAME) {
+		VSLb(ctx->vsl, SLT_VCL_Log, "cookie: cookie string overflowed");
 		return;
 	}
-	struct cookie *cookie;
 
+	struct cookie *cookie;
 	VTAILQ_FOREACH(cookie, &vcp->cookielist, list) {
 		if (strcmp(cookie->name, name) == 0) {
 			cookie->value = WS_Printf(ctx->ws, "%s", value);
@@ -156,9 +172,9 @@ vmod_set(const struct vrt_ctx *ctx, VCL_STRING name, VCL_STRING value) {
 		}
 	}
 
-	newcookie = (struct cookie *) WS_Alloc(ctx->ws, sizeof(struct cookie));
+	struct cookie *newcookie = (struct cookie *)WS_Alloc(ctx->ws, sizeof(struct cookie));
 	if (newcookie == NULL) {
-		VSL(SLT_Debug, 0, "cookie-vmod: unable to get storage for cookie");
+		VSLb(ctx->vsl, SLT_VCL_Log, "cookie: unable to get storage for cookie");
 		return;
 	}
 	newcookie->name = WS_Printf(ctx->ws, "%s", name);
@@ -169,11 +185,11 @@ vmod_set(const struct vrt_ctx *ctx, VCL_STRING name, VCL_STRING value) {
 
 VCL_BOOL
 vmod_isset(const struct vrt_ctx *ctx, const char *name) {
-	struct cookie *cookie, *tmp;
 	struct vmod_cookie *vcp = cobj_get(ctx);
 	CHECK_OBJ_NOTNULL(vcp, VMOD_COOKIE_MAGIC);
 
-	VTAILQ_FOREACH_SAFE(cookie, &vcp->cookielist, list, tmp) {
+	struct cookie *cookie;
+	VTAILQ_FOREACH(cookie, &vcp->cookielist, list) {
 		if (strcmp(cookie->name, name) == 0) {
 			return 1;
 		}
@@ -183,11 +199,11 @@ vmod_isset(const struct vrt_ctx *ctx, const char *name) {
 
 VCL_STRING
 vmod_get(const struct vrt_ctx *ctx, VCL_STRING name) {
-	struct cookie *cookie, *tmp;
 	struct vmod_cookie *vcp = cobj_get(ctx);
 	CHECK_OBJ_NOTNULL(vcp, VMOD_COOKIE_MAGIC);
 
-	VTAILQ_FOREACH_SAFE(cookie, &vcp->cookielist, list, tmp) {
+	struct cookie *cookie;
+	VTAILQ_FOREACH(cookie, &vcp->cookielist, list) {
 		if (strcmp(cookie->name, name) == 0) {
 			return (cookie->value);
 		}
@@ -198,13 +214,14 @@ vmod_get(const struct vrt_ctx *ctx, VCL_STRING name) {
 
 VCL_VOID
 vmod_delete(const struct vrt_ctx *ctx, VCL_STRING name) {
-	struct cookie *cookie, *tmp;
 	struct vmod_cookie *vcp = cobj_get(ctx);
 	CHECK_OBJ_NOTNULL(vcp, VMOD_COOKIE_MAGIC);
 
-	VTAILQ_FOREACH_SAFE(cookie, &vcp->cookielist, list, tmp) {
+	struct cookie *cookie;
+	VTAILQ_FOREACH(cookie, &vcp->cookielist, list) {
 		if (strcmp(cookie->name, name) == 0) {
 			VTAILQ_REMOVE(&vcp->cookielist, cookie, list);
+			/* No way to clean up storage, let ws reclaim do it. */
 			break;
 		}
 	}
@@ -212,95 +229,73 @@ vmod_delete(const struct vrt_ctx *ctx, VCL_STRING name) {
 
 VCL_VOID
 vmod_clean(const struct vrt_ctx *ctx) {
-	struct cookie *cookie;
 	struct vmod_cookie *vcp = cobj_get(ctx);
 	CHECK_OBJ_NOTNULL(vcp, VMOD_COOKIE_MAGIC);
 
-	while (!VTAILQ_EMPTY(&vcp->cookielist)) {
-		cookie = VTAILQ_FIRST(&vcp->cookielist);
+	struct cookie *cookie, *c_safe;
+	VTAILQ_FOREACH_SAFE(cookie, &vcp->cookielist, list, c_safe) {
 		VTAILQ_REMOVE(&vcp->cookielist, cookie, list);
 	}
 }
 
-VCL_VOID
-vmod_filter_except(const struct vrt_ctx *ctx, VCL_STRING whitelist) {
-	char cookienames[MAX_COOKIEPART][MAXCOOKIES];
-	char tmpstr[MAX_COOKIESTRING];
-	struct cookie *cookie, *tmp;
+static VCL_VOID
+_filter_except_or_only(const struct vrt_ctx *ctx, VCL_STRING whitelist_s, VCL_BOOL except) {
+	char buf[MAX_COOKIE_STRING];
+	struct cookie *cookieptr;
 	char *tokptr, *saveptr;
-	int i, found = 0, num_cookies = 0;
+	int whitelisted = 0;
 	struct vmod_cookie *vcp = cobj_get(ctx);
+	struct whitelist *whentry;
+
+	VTAILQ_HEAD(, whitelist) whitelist_head;
+	VTAILQ_INIT(&whitelist_head);
 	CHECK_OBJ_NOTNULL(vcp, VMOD_COOKIE_MAGIC);
 
-	strcpy(tmpstr, whitelist);
-	tokptr = strtok_r(tmpstr, ",", &saveptr);
+	strcpy(buf, whitelist_s);
+	tokptr = strtok_r(buf, ",", &saveptr);
 	if (!tokptr) return;
 
-	// parse the whitelist.
+	/* Parse the supplied whitelist. */
 	while (1) {
-		strcpy(cookienames[num_cookies], tokptr);
-		num_cookies++;
-
+		whentry = malloc(sizeof(struct whitelist));
+		AN(whentry);
+		strcpy(whentry->name, tokptr);
+		VTAILQ_INSERT_TAIL(&whitelist_head, whentry, list);
 		tokptr = strtok_r(NULL, ",", &saveptr);
 		if (!tokptr) break;
 	}
 
-	// filter existing cookies that isn't in the whitelist.
-	VTAILQ_FOREACH_SAFE(cookie, &vcp->cookielist, list, tmp) {
-		found = 0;
-		for (i = 0; i < num_cookies; i++) {
-			if (strlen(cookie->name) == strlen(cookienames[i]) &&
-			    strcmp(cookienames[i], cookie->name) == 0) {
-				found = 1;
+	/* Filter existing cookies that isn't in the whitelist. */
+	VTAILQ_FOREACH(cookieptr, &vcp->cookielist, list) {
+		whitelisted = 0;
+		VTAILQ_FOREACH(whentry, &whitelist_head, list) {
+			if (strlen(cookieptr->name) == strlen(whentry->name) &&
+			    strcmp(cookieptr->name, whentry->name) == 0) {
+				whitelisted = 1;
 				break;
 			}
 		}
-
-		if (!found) {
-			VTAILQ_REMOVE(&vcp->cookielist, cookie, list);
+		if (except ^ whitelisted) {
+			VTAILQ_REMOVE(&vcp->cookielist, cookieptr, list);
 		}
-	} // foreach
+	}
+
+	VTAILQ_FOREACH(whentry, &whitelist_head, list) {
+		VTAILQ_REMOVE(&whitelist_head, whentry, list);
+		free(whentry);
+	}
 }
 
 
 VCL_VOID
-vmod_filter_only(const struct vrt_ctx *ctx, VCL_STRING blacklist) {
-        char cookienames[MAX_COOKIEPART][MAXCOOKIES];
-        char tmpstr[MAX_COOKIESTRING];
-        struct cookie *cookie, *tmp;
-        char *tokptr, *saveptr;
-        int i, found = 0, num_cookies = 0;
-        struct vmod_cookie *vcp = cobj_get(ctx);
-        CHECK_OBJ_NOTNULL(vcp, VMOD_COOKIE_MAGIC);
+vmod_filter_except(const struct vrt_ctx *ctx, VCL_STRING whitelist_s) {
+    _filter_except_or_only(ctx, whitelist_s, 1);
+}
 
-        strcpy(tmpstr, (char *)blacklist);
-        tokptr = strtok_r(tmpstr, ",", &saveptr);
-        if (!tokptr) return;
 
-        // parse the blacklist.
-        while (1) {
-                strcpy(cookienames[num_cookies], tokptr);
-                num_cookies++;
-
-                tokptr = strtok_r(NULL, ",", &saveptr);
-                if (!tokptr) break;
-        }
-
-        // filter existing cookies that are in the blacklist.
-        VTAILQ_FOREACH_SAFE(cookie, &vcp->cookielist, list, tmp) {
-                found = 0;
-                for (i = 0; i < num_cookies; i++) {
-                        if (strlen(cookie->name) == strlen(cookienames[i]) &&
-                            strcmp(cookienames[i], cookie->name) == 0) {
-                                found = 1;
-                                break;
-                        }
-                }
-
-                if (found) {
-                        VTAILQ_REMOVE(&vcp->cookielist, cookie, list);
-                }
-        } // foreach
+VCL_VOID
+vmod_filter_only(const struct vrt_ctx *ctx, VCL_STRING whitelist_s) {
+    _filter_except_or_only(ctx, whitelist_s, 0);
 }
 
 
@@ -313,9 +308,6 @@ vmod_get_string(const struct vrt_ctx *ctx) {
 	struct vmod_cookie *vcp = cobj_get(ctx);
 	CHECK_OBJ_NOTNULL(vcp, VMOD_COOKIE_MAGIC);
 
-	u = WS_Reserve(ctx->ws, 0);
-	p = ctx->ws->f;
-
 	output = VSB_new_auto();
 	AN(output);
 
@@ -324,19 +316,20 @@ vmod_get_string(const struct vrt_ctx *ctx) {
 	}
 	VSB_trim(output);
 	VSB_finish(output);
-	v = VSB_len(output);
+	v = 1 + VSB_len(output);
+
+	u = WS_Reserve(ctx->ws, 0);
+	p = ctx->ws->f;
 	strcpy(p, VSB_data(output));
 
 	VSB_delete(output);
 
-	v++;
 	if (v > u) {
 		WS_Release(ctx->ws, 0);
-		VSL(SLT_Debug, 0, "cookie-vmod: Workspace overflowed, abort");
+		VSLb(ctx->vsl, SLT_VCL_Log, "cookie: Workspace overflowed");
 		return (NULL);
 	}
 	WS_Release(ctx->ws, v);
-
 	return (p);
 }
 

@@ -1,3 +1,13 @@
+revsw-varnish4-modules (0.5-2) unstable; urgency=medium
+
+  * Updated 'cookie' VMOD from original repo.
+  * Fixed 'chromelogger' VMOD for multithreaded use.
+  * Added 'collect_partial' funtion to 'chromelogger' VMOD, to allow
+    logging from 'vcl_backend_response'.
+  * Removed empty 'revvar' VMOD init function.
+
+ -- Sorin Otescu <sorin@revsw.com>  Tue, 30 Dec 2014 18:11:12 +0200
+
 revsw-varnish4-modules (0.5-1) unstable; urgency=medium
 
   * Fixed allocation for 'chromelogger' VMOD.

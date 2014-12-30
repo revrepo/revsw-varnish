@@ -5,12 +5,15 @@ VARNISHSRC := $(shell readlink -f ../varnish-4.0.2)
 VMODDIR := /usr/lib/varnish/vmods
 VMOD_ABI := $(shell printf '\#include "vmod_abi.h"\nVMOD_ABI_Version' | cpp - -I$(VARNISHSRC)/include | sed '/^\#/D;s/"//g;s/\([A-Z]\)/\L\1/g;s/[^a-z0-9.]/-/g;s/varnish/varnishabi/')
 
+#LOCAL_CFLAGS := -O0 -g3
+#LOCAL_LDFLAGS := -g3
+
 override_dh_auto_configure:
-	cd libvmod-chromelogger-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
-	cd libvmod-cookie-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
-	cd libvmod-revvar-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
-	cd libvmod-header-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
-	cd libvmod-timers-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+	cd libvmod-chromelogger-4.0 && ./autogen.sh && CFLAGS="$(LOCAL_CFLAGS)" LDFLAGS="$(LOCAL_LDFLAGS)" ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+	cd libvmod-cookie-4.0 && ./autogen.sh && CFLAGS="$(LOCAL_CFLAGS)" LDFLAGS="$(LOCAL_LDFLAGS)" ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+	cd libvmod-revvar-4.0 && ./autogen.sh && CFLAGS="$(LOCAL_CFLAGS)" LDFLAGS="$(LOCAL_LDFLAGS)" ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+	cd libvmod-header-4.0 && ./autogen.sh && CFLAGS="$(LOCAL_CFLAGS)" LDFLAGS="$(LOCAL_LDFLAGS)" ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+	cd libvmod-timers-4.0 && ./autogen.sh && CFLAGS="$(LOCAL_CFLAGS)" LDFLAGS="$(LOCAL_LDFLAGS)" ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
 
 override_dh_gencontrol:
 	echo "Varnish:ABI=$(VMOD_ABI)" >> debian/substvars

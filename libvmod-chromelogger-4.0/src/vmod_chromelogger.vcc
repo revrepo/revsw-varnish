@@ -1,3 +1,5 @@
 $Module chromelogger 3 Varnish chromelogger Module
+$Init init_function
 $Function VOID log(STRING)
-$Function STRING collect()
+$Function STRING collect(STRING)
+$Function STRING collect_partial()
