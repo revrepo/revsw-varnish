@@ -112,7 +112,7 @@ _duplicate_vars(struct ws *ws, void *data)
             /* We must copy the string into our own ws.
                STRING_LITERAL doesn't need to be copied, because it's a static value
                defined at compile time. */
-            if (v->type == STRING)
+            if (v->type == STRING && v->value.STRING)
                 v->value.STRING = WS_Copy(ws, v->value.STRING, -1);
         }
     }
