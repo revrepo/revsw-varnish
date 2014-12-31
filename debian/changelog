@@ -1,6 +1,6 @@
 revsw-varnish4-modules (0.5-3) unstable; urgency=medium
 
-  * Fixed NULL string access causing SEGFAULT.
+  * Fixed NULL string accesses causing SEGFAULT.
 
  -- Sorin Otescu <sorin@revsw.com>  Wed, 31 Dec 2014 10:17:52 +0200
 

@@ -72,14 +72,14 @@ cobj_get(const struct vrt_ctx *ctx) {
 		cobj_clear(vcp);
 		vcp->xid = ctx->req->vsl[0].wid;
 		AZ(pthread_setspecific(key, vcp));
-        VSLb(ctx->vsl, SLT_Debug, "cookie: new XID %u", vcp->xid);
+        //VSLb(ctx->vsl, SLT_Debug, "cookie: new XID %u", vcp->xid);
 	}
 
 	CHECK_OBJ_NOTNULL(vcp, VMOD_COOKIE_MAGIC);
 
 	if (vcp->xid != ctx->req->vsl[0].wid) {
-        VSLb(ctx->vsl, SLT_Debug, "cookie: reusing entry for XID %u; new XID %u",
-             vcp->xid, ctx->req->vsl[0].wid);
+        //VSLb(ctx->vsl, SLT_Debug, "cookie: reusing entry for XID %u; new XID %u",
+        //     vcp->xid, ctx->req->vsl[0].wid);
 		// Reuse previously allocated storage
 		cobj_clear(vcp);
 		vcp->xid = ctx->req->vsl[0].wid;
@@ -98,13 +98,14 @@ vmod_parse(const struct vrt_ctx *ctx, VCL_STRING cookieheader) {
 
 	int i = 0;
 
-    VSLb(ctx->vsl, SLT_Debug, "cookie: parse for XID %u", ctx->req->vsl[0].wid);
-    VSL_Flush(ctx->vsl, 0);
+    //VSLb(ctx->vsl, SLT_Debug, "cookie: parse for XID %u", ctx->req->vsl[0].wid);
+    //VSL_Flush(ctx->vsl, 0);
 
     /* If called twice during the same request, clean out old state */
 	vmod_clean(ctx);
 
-	VSLb(ctx->vsl, SLT_Debug, "cookie: cookie string is %lu bytes.", strlen(cookieheader));
+	VSLb(ctx->vsl, SLT_Debug, "cookie: cookie string is %lu bytes.",
+         cookieheader ? strlen(cookieheader) : 0);
 
 	if (cookieheader == NULL || strlen(cookieheader) == 0) {
 		VSLb(ctx->vsl, SLT_VCL_Log, "cookie: nothing to parse");
