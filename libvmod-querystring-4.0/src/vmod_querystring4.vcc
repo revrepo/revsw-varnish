@@ -96,8 +96,28 @@ Description
 Example
    .. sourcecode::
 
-      set req.url = querystring.filter(req.url,
+      set req.url = querystring.filter_except(req.url,
                                        "q" + querystring.filtersep() + "p");
+
+$Function STRING filter_csv(STRING, STRING)
+
+Description
+   Returns the given URI without the listed comma-separated parameters
+Example
+   .. sourcecode::
+
+      set req.url = querystring.filter_csv(req.url,
+        "utm_source,utm_medium,utm_campaign");
+
+
+$Function STRING filter_except_csv(STRING, STRING)
+
+Description
+   Returns the given URI but only keeps the listed comma-separated parameters
+Example
+   .. sourcecode::
+
+      set req.url = querystring.filter_except_csv(req.url, "q,p");
 
 $Function STRING regfilter(STRING, STRING)
 

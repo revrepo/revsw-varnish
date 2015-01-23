@@ -1,13 +1,13 @@
 /*
  * libvmod-querystring - querystring manipulation module for Varnish
- * 
+ *
  * Copyright (C) 2012-2014, Dridi Boukelmoune <dridi.boukelmoune@gmail.com>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above
  *    copyright notice, this list of conditions and the following
  *    disclaimer.
@@ -15,7 +15,7 @@
  *    copyright notice, this list of conditions and the following
  *    disclaimer in the documentation and/or other materials
  *    provided with the distribution.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
@@ -30,6 +30,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define _GNU_SOURCE  // required for strchrnul()
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
@@ -265,6 +266,26 @@ is_param_filtered(const char *param, int length, struct filter_context *context)
 }
 
 static bool
+is_param_filtered_csv(const char *param, int length, struct filter_context *context)
+{
+	if (length == 0) {
+		return true;
+	}
+
+	const char *p = context->params.filter.params;
+
+	while (*p) {
+        const char *end = strchrnul(p, ',');
+		if (end-p == length && strncmp(param, p, end-p) == 0) {
+			return true ^ context->is_kept;
+		}
+		p = *end ? end+1 : end;
+	}
+
+	return false ^ context->is_kept;
+}
+
+static bool
 is_param_regfiltered(const char *param, int length, struct filter_context *context)
 {
 	if (length == 0) {
@@ -475,6 +496,28 @@ vmod_filter(struct sess *sp, const char *uri, const char *params, ...)
 }
 
 const char *
+vmod_filter_csv(struct sess *sp, const char *uri, const char *params)
+{
+	struct filter_context context;
+	const char *filtered_uri;
+
+	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
+	QS_LOG_CALL(sp, "\"%s\", \"%s\"", uri, params);
+
+	context.type = filter;
+	context.ws = sp->ws;
+	context.uri = uri;
+	context.params.filter.params = params;
+	context.is_filtered = &is_param_filtered_csv;
+	context.is_kept = false;
+
+	filtered_uri = filter_querystring(&context);
+
+	QS_LOG_RETURN(sp, filtered_uri);
+	return filtered_uri;
+}
+
+const char *
 vmod_filter_except(struct sess *sp, const char *uri, const char *params, ...)
 {
 	struct filter_context context;
@@ -493,6 +536,28 @@ vmod_filter_except(struct sess *sp, const char *uri, const char *params, ...)
 	va_start(context.params.filter.ap, params);
 	filtered_uri = filter_querystring(&context);
 	va_end(context.params.filter.ap);
+
+	QS_LOG_RETURN(sp, filtered_uri);
+	return filtered_uri;
+}
+
+const char *
+vmod_filter_except_csv(struct sess *sp, const char *uri, const char *params)
+{
+	struct filter_context context;
+	const char *filtered_uri;
+
+	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
+	QS_LOG_CALL(sp, "\"%s\", \"%s\"", uri, params);
+
+	context.type = filter;
+	context.ws = sp->ws;
+	context.uri = uri;
+	context.params.filter.params = params;
+	context.is_filtered = &is_param_filtered_csv;
+	context.is_kept = true;
+
+	filtered_uri = filter_querystring(&context);
 
 	QS_LOG_RETURN(sp, filtered_uri);
 	return filtered_uri;
@@ -631,6 +696,28 @@ vmod_filter(const struct vrt_ctx *ctx, const char *uri, const char *params, ...)
 }
 
 const char *
+vmod_filter_csv(const struct vrt_ctx *ctx, const char *uri, const char *params)
+{
+	struct filter_context context;
+	const char *filtered_uri;
+
+	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
+	QS_LOG_CALL(ctx, "\"%s\", \"%s\"", uri, params);
+
+	context.type = filter;
+	context.ws = ctx->ws;
+	context.uri = uri;
+	context.params.filter.params = params;
+	context.is_filtered = &is_param_filtered_csv;
+	context.is_kept = false;
+
+	filtered_uri = filter_querystring(&context);
+
+	QS_LOG_RETURN(ctx, filtered_uri);
+	return filtered_uri;
+}
+
+const char *
 vmod_filter_except(const struct vrt_ctx *ctx, const char *uri, const char *params, ...)
 {
 	struct filter_context context;
@@ -649,6 +736,28 @@ vmod_filter_except(const struct vrt_ctx *ctx, const char *uri, const char *param
 	va_start(context.params.filter.ap, params);
 	filtered_uri = filter_querystring(&context);
 	va_end(context.params.filter.ap);
+
+	QS_LOG_RETURN(ctx, filtered_uri);
+	return filtered_uri;
+}
+
+const char *
+vmod_filter_except_csv(const struct vrt_ctx *ctx, const char *uri, const char *params)
+{
+	struct filter_context context;
+	const char *filtered_uri;
+
+	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
+	QS_LOG_CALL(ctx, "\"%s\", \"%s\", ...", uri, params);
+
+	context.type = filter;
+	context.ws = ctx->ws;
+	context.uri = uri;
+	context.params.filter.params = params;
+	context.is_filtered = &is_param_filtered_csv;
+	context.is_kept = true;
+
+	filtered_uri = filter_querystring(&context);
 
 	QS_LOG_RETURN(ctx, filtered_uri);
 	return filtered_uri;

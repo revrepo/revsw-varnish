@@ -1,3 +1,9 @@
+revsw-varnish4-modules (0.5-5) unstable; urgency=medium
+
+  * Added 'filter_csv' and 'filter_except_csv' to 'querystring' VMOD.
+
+ -- Sorin Otescu <sorin@revsw.com>  Thu, 22 Jan 2015 20:41:39 +0200
+
 revsw-varnish4-modules (0.5-4) unstable; urgency=medium
 
   * Added 'querystring' VMOD.
