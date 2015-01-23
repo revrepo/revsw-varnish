@@ -28,7 +28,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-AM_CPPFLAGS = @VMOD_INCLUDES@
+AM_CPPFLAGS = @VMOD_INCLUDES@ @DEFINE_MAJOR@ @DEFINE_LOGGING@
 
 vmoddir = @VMOD_DIR@
 vmod_LTLIBRARIES = libvmod_querystring.la
@@ -41,7 +41,7 @@ libvmod_querystring_la_SOURCES = \
 	vmod_querystring.c \
 	vmod_querystring.h
 
-vcc_if.c vcc_if.h vmod_querystring.man.rst: @VMODTOOL@ $(top_srcdir)/src/vmod_querystring.vcc ../README.rst
+vcc_if.c vcc_if.h vmod_querystring.man.rst: @VMODTOOL@ $(top_srcdir)/src/vmod_querystring@VARNISH_MAJOR@.vcc ../README.rst
 	cp ../README.rst vmod_querystring.man.rst
 	@VMODTOOL@ $(top_srcdir)/src/vmod_querystring@VARNISH_MAJOR@.vcc
 
