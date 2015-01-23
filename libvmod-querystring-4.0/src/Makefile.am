@@ -28,10 +28,9 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-AM_CFLAGS = @DEFINE_MAJOR@ @DEFINE_ABI@ @DEFINE_LOGGING@
-INCLUDES = -I$(VARNISHSRC)/include -I$(VARNISHSRC)/bin/varnishd -I$(VARNISHSRC)
+AM_CPPFLAGS = @VMOD_INCLUDES@
 
-vmoddir = $(VMODDIR)
+vmoddir = @VMOD_DIR@
 vmod_LTLIBRARIES = libvmod_querystring.la
 
 libvmod_querystring_la_LDFLAGS = -module -export-dynamic -avoid-version -shared
@@ -42,15 +41,15 @@ libvmod_querystring_la_SOURCES = \
 	vmod_querystring.c \
 	vmod_querystring.h
 
-vcc_if.c vcc_if.h vmod_querystring.man.rst: *.vcc ../README.rst
+vcc_if.c vcc_if.h vmod_querystring.man.rst: @VMODTOOL@ $(top_srcdir)/src/vmod_querystring.vcc ../README.rst
 	cp ../README.rst vmod_querystring.man.rst
-	@PYTHON@ @VMODTOOL@ $(top_srcdir)/src/vmod_querystring@VARNISH_MAJOR@.vcc
+	@VMODTOOL@ $(top_srcdir)/src/vmod_querystring@VARNISH_MAJOR@.vcc
 
 VMOD_TESTS = tests/*.vtc
 .PHONY: $(VMOD_TESTS)
 
-tests/*.vtc:
-	$(VARNISHSRC)/bin/varnishtest/varnishtest -Dvarnishd=$(VARNISHSRC)/bin/varnishd/varnishd -Dvmod_topbuild=$(abs_top_builddir) $@
+$(top_srcdir)/src/tests/*.vtc:
+	@VARNISHTEST@ -Dvarnishd=@VARNISHD@ -Dvmod_topbuild=$(abs_top_builddir) $@
 
 check: $(VMOD_TESTS)
 
@@ -58,5 +57,5 @@ EXTRA_DIST = \
 	vmod_querystring.vcc \
 	$(VMOD_TESTS)
 
-CLEANFILES = $(builddir)/vcc_if.c $(builddir)/vcc_if.h
+CLEANFILES = $(builddir)/vcc_if.c $(builddir)/vcc_if.h $(builddir)/vmod_querystring.man.rst
 

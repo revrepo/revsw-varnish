@@ -87,67 +87,21 @@ if test "x$enable_logging" != "xno"; then
 	AC_SUBST([DEFINE_LOGGING], [-DQS_ENABLE_LOGGING])
 fi
 
-# Varnish source tree
-AC_ARG_VAR([VARNISHSRC], [path to Varnish source tree (mandatory)])
-if test "x$VARNISHSRC" = x; then
-	AC_MSG_ERROR([No Varnish source tree specified])
-fi
+PKG_CHECK_MODULES([libvarnishapi], [varnishapi])
 
-VARNISHSRC=`cd $VARNISHSRC && pwd`
-Varnish_Version_MAJOR=
+# Varnish include files tree
+VARNISH_VMOD_INCLUDES
+VARNISH_VMOD_DIR
+VARNISH_VMODTOOL
 
-# Is it a Varnish 3 or 4 source tree ?
-AC_CHECK_FILE([$VARNISHSRC/lib/libvmod_std/vmod.py], [Varnish_Version_MAJOR=3])
-AC_CHECK_FILE([$VARNISHSRC/lib/libvcc/vmodtool.py],  [Varnish_Version_MAJOR=4])
+AC_PATH_PROG([VARNISHTEST], [varnishtest])
+AC_PATH_PROG([VARNISHD], [varnishd], [],
+    [$PATH:$PATH:`pkg-config varnishapi --variable=sbindir`])
+
+Varnish_Version_MAJOR=4
 
 AC_SUBST([VARNISH_MAJOR], [$Varnish_Version_MAJOR])
 AC_SUBST([DEFINE_MAJOR], [-DVARNISH_MAJOR=$Varnish_Version_MAJOR])
-
-# Can we build a VMOD with VARNISHSRC ?
-AS_CASE(["$Varnish_Version_MAJOR"],
-	[4], [AC_SUBST([VMODTOOL], ['$(VARNISHSRC)/lib/libvcc/vmodtool.py'])],
-	[3], [AC_SUBST([VMODTOOL], ['$(VARNISHSRC)/lib/libvmod_std/vmod.py'])],
-	     [AC_MSG_FAILURE(["$VARNISHSRC" is not a Varnish source directory])]
-)
-
-# Check that varnishtest is built in the varnish source directory
-AC_CHECK_FILE([$VARNISHSRC/bin/varnishtest/varnishtest],
-	[],
-	[AC_MSG_FAILURE([Could not find "$VARNISHSRC/bin/varnishtest/varnishtest". Please build your varnish source directory])]
-)
-
-# Check vanish ABI version
-AC_CHECK_FILE([$VARNISHSRC/include/vmod_abi.h],
-	[
-		AC_MSG_CHECKING([varnish ABI version])
-		[VMOD_ABI_Version=`cut -d ' ' -f 4 "$VARNISHSRC/include/vmod_abi.h"`]
-		AC_MSG_RESULT([$VMOD_ABI_Version])
-	],
-	[
-		[VMOD_ABI_Version=3.0.0]
-		AC_MSG_NOTICE([Could not find "$VARNISHSRC/include/vmod_abi.h". Assuming varnish 3.0.0 ABI version])
-	]
-)
-
-AS_CASE([`cat $VARNISHSRC/include/vmod_abi.h 2>/dev/null`],
-	[*4.0.0*], [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_4_0_0])],
-	[*3.0.6*], [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_3_0_6])],
-	[*3.0.5*], [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_3_0_5])],
-	[*3.0.4*], [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_3_0_4])],
-	[*3.0.3*], [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_3_0_3])],
-	[*3.0.2*], [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_3_0_2])],
-	[*3.0.1*], [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_3_0_1])],
-	           [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_3_0_0])]
-)
-
-# vmod installation dir
-AC_ARG_VAR([VMODDIR], [vmod installation directory @<:@LIBDIR/varnish/vmods@:>@])
-if test "x$VMODDIR" = x; then
-	VMODDIR=`pkg-config --variable=vmoddir varnishapi`
-	if test "x$VMODDIR" = x; then
-		AC_MSG_FAILURE([Could not determine vmod installation directory])
-	fi
-fi
 
 AC_CONFIG_FILES([
 	Makefile
