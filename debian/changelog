@@ -1,3 +1,10 @@
+revsw-varnish4-modules (0.5-6) unstable; urgency=medium
+
+  * Different way of computing time in 'timers' VMOD.
+  * Added 'req_processing_time' function to 'timers' VMOD.
+
+ -- Sorin Otescu <sorin@revsw.com>  Tue, 27 Jan 2015 18:29:47 +0200
+
 revsw-varnish4-modules (0.5-5) unstable; urgency=medium
 
   * Added 'filter_csv' and 'filter_except_csv' to 'querystring' VMOD.

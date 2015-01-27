@@ -15,6 +15,15 @@
 #define _DEBUG 0
 #endif
 
+#if 0
+#define NOW (ctx->now)
+#else
+
+double VTIM_real(void);
+#define NOW VTIM_real()
+
+#endif
+
 /*  XXX This is all true for varnish 3.0.3 - the varnish 3 BRANCH is already structured,
     differently. Ectx->req->specially the session struct has changed, with more data moving into
     the request struct instead :(
@@ -169,6 +178,9 @@ VCL_INT
 vmod_req_handle_time( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
     config_t *cfg   = priv->priv;
 
+    if (isnan(ctx->req->t_req) || isnan(ctx->req->t_first))
+        return -1;
+
     return (int) ((ctx->req->t_req - ctx->req->sp->t_open) * cfg->multiplier);
 }
 
@@ -177,11 +189,25 @@ VCL_INT
 vmod_req_response_time( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
     config_t *cfg   = priv->priv;
 
-    // The rectx->req->sponse may not have been sent yet (say you're calling this
+    // The response may not have been sent yet (say you're calling this
     // from vcl_recv) - Return -1 in that case.
+    if (isnan(ctx->req->t_req))
+        return -1;
 
-    int rv = (int) ((ctx->req->t_prev - ctx->req->t_req) * cfg->multiplier);
-    return rv >= 0 ? rv : -1;
+    return (int) ((ctx->now - ctx->req->t_req) * cfg->multiplier);
+}
+
+// Duration of Request headers received -> now.
+VCL_INT
+vmod_req_processing_time( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
+    config_t *cfg   = priv->priv;
+
+    // The response may not have been sent yet (say you're calling this
+    // from vcl_recv) - Return -1 in that case.
+    if (isnan(ctx->req->t_first))
+        return -1;
+
+    return (int) ((NOW - ctx->req->t_first) * cfg->multiplier);
 }
 
 // Duration of First byte -> Last byte
@@ -194,8 +220,10 @@ VCL_INT
 vmod_req_delivery_time( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
     config_t *cfg   = priv->priv;
 
-    // The rectx->req->sponse may not have been sent yet (say you're calling this
+    // The response may not have been sent yet (say you're calling this
     // from vcl_recv) - Return -1 in that case.
+    if (isnan(ctx->req->t_prev) || isnan(ctx->req->sp->t_idle))
+        return -1;
 
     int rv = (int) ((ctx->req->sp->t_idle - ctx->req->t_prev) * cfg->multiplier);
     return rv >= 0 ? rv : -1;
