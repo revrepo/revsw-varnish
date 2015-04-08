@@ -210,6 +210,19 @@ vmod_req_processing_time( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
     return (int) ((NOW - ctx->req->t_first) * cfg->multiplier);
 }
 
+// Duration of Request headers received -> now.
+VCL_REAL
+vmod_req_processing_time_real( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
+    config_t *cfg   = priv->priv;
+
+    // The response may not have been sent yet (say you're calling this
+    // from vcl_recv) - Return -1 in that case.
+    if (isnan(ctx->req->t_first))
+        return -1;
+
+    return NOW - ctx->req->t_first;
+}
+
 // Duration of First byte -> Last byte
 // XXX since 'vcl_deliver' is the last point of entry for user facing code at
 // the moment, the request will never be 'done' in the vcl users can access,

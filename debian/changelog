@@ -1,3 +1,9 @@
+revsw-varnish4-modules (0.5-7) unstable; urgency=medium
+
+  * Added 'req_processing_time_real' to 'timers' VMOD.
+
+ -- Sorin Otescu <sorin@revsw.com>  Wed, 08 Apr 2015 20:12:32 +0300
+
 revsw-varnish4-modules (0.5-6) unstable; urgency=medium
 
   * Different way of computing time in 'timers' VMOD.
