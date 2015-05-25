@@ -201,6 +201,7 @@ struct vcc {
 	struct token		*t_defaultdir;
 
 	unsigned		unique;
+    unsigned        emitted_invalid_sockaddr;    /* RevSW: invalid IPv4 addr for rev_dns */
 
 	unsigned		err_unref;
 	unsigned		allow_inline_c;
@@ -234,7 +235,7 @@ void vcc_Acl_Hack(struct vcc *tl, char *b);
 int vcc_ParseAction(struct vcc *tl);
 
 /* vcc_backend.c */
-#define MAX_BACKEND_NAME	64
+#define MAX_BACKEND_NAME	128
 struct fld_spec;
 
 void vcc_ParseProbe(struct vcc *tl);
@@ -296,6 +297,7 @@ void Resolve_Sockaddr(struct vcc *tl, const char *host, const char *port, \
     const char **ipv4, const char **ipv4_ascii, const char **ipv6, \
     const char **ipv6_ascii, const char **p_ascii, int maxips,
     const struct token *t_err, const char *errid);
+void Emit_Invalid_Sockaddr(struct vcc *tl);
 
 /* vcc_symb.c */
 struct symbol *VCC_AddSymbolStr(struct vcc *tl, const char *name, enum symkind);

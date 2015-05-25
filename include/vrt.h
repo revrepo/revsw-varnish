@@ -157,6 +157,7 @@ struct vrt_backend {
 	const char			*vcl_name;
 	const char			*ipv4_addr;
 	const char			*ipv6_addr;
+    const char			*host;
 	const char			*port;
 
 	const struct suckaddr		*ipv4_suckaddr;
@@ -226,6 +227,10 @@ void VRT_synth_page(VRT_CTX, const char *, ...);
 /* Backend related */
 void VRT_init_dir(struct cli *, struct director **, int idx, const void *priv);
 void VRT_fini_dir(struct cli *, struct director *);
+
+/* RevSW: get the VCL backend from a simple director */
+const struct vrt_backend *
+VRT_get_backend(struct cli *, struct director *);
 
 /* Suckaddr related */
 int VRT_VSA_GetPtr(const struct suckaddr *sua, const unsigned char ** dst);

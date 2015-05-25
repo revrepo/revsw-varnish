@@ -403,7 +403,8 @@ VRT_fini_dir(struct cli *cli, struct director *d)
 	struct vdi_simple *vs;
 
 	(void)cli;
-	ASSERT_CLI();
+    /* RevSW: This can be called from the rev_dns director, from the recv thread */
+    //ASSERT_CLI();
 	CHECK_OBJ_NOTNULL(d, DIRECTOR_MAGIC);
 	CAST_OBJ_NOTNULL(vs, d->priv, VDI_SIMPLE_MAGIC);
 
@@ -420,7 +421,8 @@ VRT_init_dir(struct cli *cli, struct director **bp, int idx, const void *priv)
 	const struct vrt_backend *t;
 	struct vdi_simple *vs;
 
-	ASSERT_CLI();
+    /* RevSW: This can be called from the rev_dns director, from the recv thread */
+	//ASSERT_CLI();
 	(void)cli;
 	t = priv;
 
@@ -440,6 +442,19 @@ VRT_init_dir(struct cli *cli, struct director **bp, int idx, const void *priv)
 		VBP_Insert(vs->backend, vs->vrt->probe, vs->vrt->hosthdr);
 
 	bp[idx] = &vs->dir;
+}
+
+/* RevSW extension */
+const struct vrt_backend *
+VRT_get_backend(struct cli *cli, struct director *d)
+{
+    struct vdi_simple *vs;
+
+    (void)cli;
+    CHECK_OBJ_NOTNULL(d, DIRECTOR_MAGIC);
+    CAST_OBJ_NOTNULL(vs, d->priv, VDI_SIMPLE_MAGIC);
+
+    return vs->vrt;
 }
 
 void

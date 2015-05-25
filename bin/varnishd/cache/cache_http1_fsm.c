@@ -151,9 +151,20 @@ http1_wait(struct sess *sp, struct worker *wrk, struct req *req)
 			}
 		} else {
 			/* Working on it */
-			if (isnan(req->t_first))
+			if (isnan(req->t_first)) {
+				/* Let's see if we were already too late before getting these bytes */
+				when = sp->t_idle + cache_param->timeout_idle;
+				if (when < now) {
+					why = SC_RX_TIMEOUT;
+					break;
+				}
+
 				/* Record first byte received time stamp */
 				req->t_first = now;
+			}
+
+			/* We have to receive the full request header in timeout_req from the
+			   first non-whitespace byte */
 			when = req->t_first + cache_param->timeout_req;
 			tmo = (int)(1e3 * (when - now));
 			if (when < now || tmo == 0) {

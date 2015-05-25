@@ -28,7 +28,7 @@ help:
 	@echo "  doctest   to run all doctests embedded in the documentation (if enabled)"
 
 clean:
-	-rm -rf $(BUILDDIR)/*
+#	-rm -rf $(BUILDDIR)/*
 
 html:
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
@@ -107,7 +107,7 @@ dist-hook:
 	find $(distdir) -mindepth 2 -type f ! -name \*.rst | grep -v '/build/' | xargs rm -f
 
 distclean-local:
-	rm -rf $(BUILDDIR)
+#	rm -rf $(BUILDDIR)
 
 include/params.rst: $(top_builddir)/bin/varnishd/varnishd
 	$(top_builddir)/bin/varnishd/varnishd -x dumprstparam > include/params.rst

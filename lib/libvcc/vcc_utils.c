@@ -262,3 +262,48 @@ Resolve_Sockaddr(struct vcc *tl,
 		vcc_ErrWhere(tl, t_err);
 	}
 }
+
+void Emit_Invalid_Sockaddr(struct vcc *tl)
+{
+	const int sz = sizeof(unsigned long long);
+	const unsigned n = (vsa_suckaddr_len + sz - 1) / sz;
+	unsigned len;
+    unsigned long long b[n];
+    struct suckaddr *sua;
+    struct sockaddr_in sin;
+    struct sockaddr_in6 sin6;
+
+    if (tl->emitted_invalid_sockaddr)
+        return;
+
+    memset(&sin, 0, sizeof(sin));
+    sin.sin_family = AF_INET;
+
+    sua = VSA_Malloc(&sin, sizeof(sin));
+    AN(sua);
+    memcpy(b, sua, vsa_suckaddr_len);
+    free(sua);
+    Fh(tl, 0, "static const unsigned long long");
+    Fh(tl, 0, " sockaddr_invalid4[%d] = {\n", n);
+    for (len = 0; len < n; len++)
+        Fh(tl, 0, "%s    0x%0*llxLL",
+            len ? ",\n" : "", sz * 2, b[len]);
+    Fh(tl, 0, "\n};\n");
+
+    memset(&sin6, 0, sizeof(sin6));
+    sin6.sin6_family = AF_INET6;
+
+    sua = VSA_Malloc(&sin6, sizeof(sin6));
+    AN(sua);
+    memcpy(b, sua, vsa_suckaddr_len);
+    free(sua);
+	Fh(tl, 0, "static const unsigned long long");
+	Fh(tl, 0, " sockaddr_invalid6[%d] = {\n", n);
+    for (len = 0; len < n; len++)
+        Fh(tl, 0, "%s    0x%0*llxLL",
+            len ? ",\n" : "", sz * 2, b[len]);
+    Fh(tl, 0, "\n};\n");
+
+	tl->emitted_invalid_sockaddr = 1;
+}
+

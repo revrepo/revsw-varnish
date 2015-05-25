@@ -668,7 +668,7 @@ vcc_Eval_SymFunc(struct vcc *tl, struct expr **e, const struct symbol *sym)
 static void
 vcc_expr4(struct vcc *tl, struct expr **e, enum var_type fmt)
 {
-	struct expr *e1, *e2;
+	struct expr *e1, *e2, *e3;
 	const char *ip;
 	const struct symbol *sym;
 	double d;
@@ -684,7 +684,28 @@ vcc_expr4(struct vcc *tl, struct expr **e, enum var_type fmt)
 		return;
 	}
 	switch(tl->t->tok) {
-	case ID:
+    case ID:
+        /* RevSW: add support for 'if(expr, expr_if_true, expr_if_false)' */
+        if (vcc_IdIs(tl->t, "if")) {
+            SkipToken(tl, ID);
+            SkipToken(tl, '(');
+            vcc_expr0(tl, &e1, BOOL);
+            ERRCHK(tl);
+
+            SkipToken(tl, ',');
+            e2 = NULL;
+            vcc_expr0(tl, &e2, fmt);
+            ERRCHK(tl);
+            SkipToken(tl, ',');
+            e3 = NULL;
+            vcc_expr0(tl, &e3, fmt);
+            SkipToken(tl, ')');
+
+            e2 = vcc_expr_edit(fmt, "(\v1) : (\v2)", e2, e3);
+            *e = vcc_expr_edit(fmt, "((\v1) ? \v2)", e1, e2);
+            return;
+        }
+
 		/*
 		 * XXX: what if var and func/proc had same name ?
 		 * XXX: look for SYM_VAR first for consistency ?

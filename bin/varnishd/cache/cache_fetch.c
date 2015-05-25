@@ -187,10 +187,21 @@ vbf_stp_mkbereq(const struct worker *wrk, struct busyobj *bo)
 	AZ(bo->vbc);
 	AZ(bo->should_close);
 	AZ(bo->storage_hint);
+    AZ(bo->vmod_revvar.data);
+    AZ(bo->vmod_revvar.dup_data_func);
 
 	HTTP_Setup(bo->bereq0, bo->ws, bo->vsl, SLT_BereqMethod);
 	http_FilterReq(bo->bereq0, bo->req->http,
 	    bo->do_pass ? HTTPH_R_PASS : HTTPH_R_FETCH);
+
+    /* RevSW: copy 'revvar' VMOD data from 'req' to 'bo', to be able to
+       access it in 'vcl_backend_response'. */
+    if (bo->req->vmod_revvar.data && bo->req->vmod_revvar.dup_data_func) {
+        bo->vmod_revvar = bo->req->vmod_revvar;
+        /* Copy 'data' to our own ws.*/
+        bo->vmod_revvar.data =
+            bo->vmod_revvar.dup_data_func(bo->ws, bo->vmod_revvar.data);
+    }
 
 	if (!bo->do_pass) {
 		http_ForceField(bo->bereq0, HTTP_HDR_METHOD, "GET");
@@ -292,7 +303,7 @@ vbf_stp_startfetch(struct worker *wrk, struct busyobj *bo)
 		AZ(bo->req);
 
 	http_PrintfHeader(bo->bereq,
-	    "X-Varnish: %u", bo->vsl->wid & VSL_IDENTMASK);
+	    "X-Rev-Id: %u", bo->vsl->wid & VSL_IDENTMASK);
 
 
 	VCL_backend_fetch_method(bo->vcl, wrk, NULL, bo, bo->bereq->ws);
