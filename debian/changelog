@@ -1,3 +1,9 @@
+revsw-varnish4 (4.0.3-1) unstable; urgency=medium
+
+  * Switched to Varnish 4.0.3.
+
+ -- Sorin Otescu <sorin@revsw.com>  Mon, 25 May 2015 18:43:06 +0300
+
 revsw-varnish4 (4.0.2-12) unstable; urgency=medium
 
   * (BP-319) Applied SES_ScheduleReq fix from:

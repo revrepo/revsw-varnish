@@ -63,6 +63,10 @@ CONTENTS
 * :ref:`obj_random`
 * :ref:`func_random.add_backend`
 * :ref:`func_random.backend`
+* :ref:`obj_rev_dns`
+* :ref:`func_rev_dns.backend`
+* :ref:`func_rev_dns.set_backend`
+* :ref:`func_rev_dns.set_max_dns_ttl`
 * :ref:`obj_round_robin`
 * :ref:`func_round_robin.add_backend`
 * :ref:`func_round_robin.backend`
@@ -256,3 +260,66 @@ Description
 Example
 	set req.backend_hint = vdir.backend(req.http.cookie);  # pick a backend based on the cookie header from the client
 
+
+.. _obj_rev_dns:
+
+Object rev_dns
+==============
+
+
+Description
+	Create a Rev DNS backend director.
+
+	The Rev DNS director resolves the address of its only backend dynamically.
+	If multiple addresses are returned, it will act as a round_robin director
+	between all of them (if they are healthy).
+	The TTL of the DNS result is respected.
+
+Example
+	new vdir = directors.rev_dns();
+
+.. _func_rev_dns.set_max_dns_ttl:
+
+VOID rev_dns.set_max_dns_ttl(DURATION)
+--------------------------------------
+
+Prototype
+	VOID rev_dns.set_max_dns_ttl(DURATION)
+
+Description
+	Set the maximum TTL of the DNS query result.
+
+	By default, the maximum TTL is one hour.
+
+Example
+	vdir.set_max_dns_ttl(10s);
+
+.. _func_rev_dns.set_backend:
+
+BOOL rev_dns.set_backend(BACKEND)
+---------------------------------
+
+Prototype
+	BOOL rev_dns.set_backend(BACKEND)
+
+Description
+	Set the backend whose address is resolved by the director.
+
+	The backend must have the 'preresolve_dns' parameter set to 1.
+
+Example
+	vdir.set_backend(backend);
+
+
+.. _func_rev_dns.backend:
+
+BACKEND rev_dns.backend()
+-------------------------
+
+Prototype
+	BACKEND rev_dns.backend()
+
+Description
+	Pick a backend from the director.
+Example
+	set req.backend_hint = vdir.backend();
