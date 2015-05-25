@@ -1,3 +1,9 @@
+revsw-varnish4-modules (0.5-8) unstable; urgency=medium
+
+  * Updated Varnish to 4.0.3.
+
+ -- Sorin Otescu <sorin@revsw.com>  Mon, 25 May 2015 19:19:51 +0300
+
 revsw-varnish4-modules (0.5-7) unstable; urgency=medium
 
   * Added 'req_processing_time_real' to 'timers' VMOD.
