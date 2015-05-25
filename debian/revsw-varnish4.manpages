@@ -1,0 +1,15 @@
+man/varnish-cli.7
+man/varnish-counters.7
+man/varnishadm.1
+man/varnishd.1
+man/varnishhist.1
+man/varnishlog.1
+man/varnishncsa.1
+man/varnishstat.1
+man/varnishtest.1
+man/varnishtop.1
+man/vcl.7
+man/vmod_directors.3
+man/vmod_std.3
+man/vsl-query.7
+man/vsl.7
