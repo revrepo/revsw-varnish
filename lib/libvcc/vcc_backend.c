@@ -44,51 +44,37 @@
  */
 
 static void
-Emit_Sockaddr(struct vcc *tl, const struct token *t_host, const char *port,
-              unsigned resolve)
+Emit_Sockaddr(struct vcc *tl, const struct token *t_host, const char *port)
 {
 	const char *ipv4, *ipv4a, *ipv6, *ipv6a, *pa;
 	const char *err;
 	char *hop, *pop;
 
-    AN(t_host->dec);
+	AN(t_host->dec);
 
-    err = VSS_parse(t_host->dec, &hop, &pop);
-    if (err != NULL) {
-        VSB_printf(tl->sb,
-            "Backend host '%.*s': %s\n", PF(t_host), err);
-        vcc_ErrWhere(tl, t_host);
-        return;
-    }
-
-    if (resolve) {
-        Resolve_Sockaddr(tl,
-            hop != NULL ? hop : t_host->dec,
-            pop != NULL ? pop : port,
-            &ipv4, &ipv4a, &ipv6, &ipv6a, &pa, 2, t_host, "Backend host");
-        ERRCHK(tl);
-        if (ipv4 != NULL) {
-            Fb(tl, 0, "\t.ipv4_suckaddr = (const struct suckaddr *)%s,\n",
-                ipv4);
-            Fb(tl, 0, "\t.ipv4_addr = \"%s\",\n", ipv4a);
-        }
-        if (ipv6 != NULL) {
-            Fb(tl, 0, "\t.ipv6_suckaddr = (const struct suckaddr *)%s,\n",
-                ipv6);
-            Fb(tl, 0, "\t.ipv6_addr = \"%s\",\n", ipv6a);
-        }
-        Fb(tl, 0, "\t.port = \"%s\",\n", pa);
-    }
-    else {
-        /* RevSW: Use an invalid IPv4 sockaddress (we need a non-zero
-           ipv4_suckaddr in rev_dns).
-           However, save the host and port for later resolution. */
-        Emit_Invalid_Sockaddr(tl);
-        Fb(tl, 0, "\t.ipv4_suckaddr = (const struct suckaddr *)(const void*)sockaddr_invalid4,\n");
-        Fb(tl, 0, "\t.ipv6_suckaddr = (const struct suckaddr *)(const void*)sockaddr_invalid6,\n");
-        Fb(tl, 0, "\t.host = \"%s\",\n", hop != NULL ? hop : t_host->dec);
-        Fb(tl, 0, "\t.port = \"%s\",\n", pop != NULL ? pop : port);
-    }
+	err = VSS_parse(t_host->dec, &hop, &pop);
+	if (err != NULL) {
+		VSB_printf(tl->sb,
+		    "Backend host '%.*s': %s\n", PF(t_host), err);
+		vcc_ErrWhere(tl, t_host);
+		return;
+	}
+	Resolve_Sockaddr(tl,
+	    hop != NULL ? hop : t_host->dec,
+	    pop != NULL ? pop : port,
+	    &ipv4, &ipv4a, &ipv6, &ipv6a, &pa, 2, t_host, "Backend host");
+	ERRCHK(tl);
+	if (ipv4 != NULL) {
+		Fb(tl, 0, "\t.ipv4_suckaddr = (const struct suckaddr *)%s,\n",
+		    ipv4);
+		Fb(tl, 0, "\t.ipv4_addr = \"%s\",\n", ipv4a);
+	}
+	if (ipv6 != NULL) {
+		Fb(tl, 0, "\t.ipv6_suckaddr = (const struct suckaddr *)%s,\n",
+		    ipv6);
+		Fb(tl, 0, "\t.ipv6_addr = \"%s\",\n", ipv6a);
+	}
+	Fb(tl, 0, "\t.port = \"%s\",\n", pa);
 }
 
 /*--------------------------------------------------------------------
@@ -294,7 +280,6 @@ vcc_ParseHostDef(struct vcc *tl, const struct token *t_be)
 	unsigned u;
 	double t;
 	char vgcname[MAX_BACKEND_NAME + 8];
-    unsigned resolve_host = 1;
 
 	sprintf(vgcname, "_%.*s", PF(t_be));
 
@@ -309,7 +294,6 @@ vcc_ParseHostDef(struct vcc *tl, const struct token *t_be)
 	    "?between_bytes_timeout",
 	    "?probe",
 	    "?max_connections",
-        "?preresolve_dns",
 	    NULL);
 
 	SkipToken(tl, '{');
@@ -397,28 +381,23 @@ vcc_ParseHostDef(struct vcc *tl, const struct token *t_be)
 			VSB_printf(tl->sb, " at\n");
 			vcc_ErrWhere(tl, tl->t);
 			return;
-        } else if (vcc_IdIs(t_field, "preresolve_dns")) {
-            // RevSW: dynamic DNS resolution instead of compiled-in
-            u = vcc_UintVal(tl);
-            ERRCHK(tl);
-            SkipToken(tl, ';');
-            resolve_host = u;
 		} else {
 			ErrInternal(tl);
 			return;
 		}
+
 	}
 
 	vcc_FieldsOk(tl, fs);
 	ERRCHK(tl);
 
 	/* Check that the hostname makes sense */
-    assert(t_host != NULL);
-    if (t_port != NULL)
-        Emit_Sockaddr(tl, t_host, t_port->dec, resolve_host);
-    else
-        Emit_Sockaddr(tl, t_host, "80", resolve_host);
-    ERRCHK(tl);
+	assert(t_host != NULL);
+	if (t_port != NULL)
+		Emit_Sockaddr(tl, t_host, t_port->dec);
+	else
+		Emit_Sockaddr(tl, t_host, "80");
+	ERRCHK(tl);
 
 	ExpectErr(tl, '}');
 

@@ -20,15 +20,14 @@ libvmod_directors_la_SOURCES = \
 	fall_back.c \
 	hash.c \
 	random.c \
-	round_robin.c \
-	rev_dns.c
+	round_robin.c
 
 nodist_libvmod_directors_la_SOURCES = \
 	vcc_if.c \
 	vcc_if.h
 
 # BUILT_SOURCES is only a hack and dependency tracking does not help for the first build
-vdir.lo fall_back.lo hash.lo random.lo round_robin.lo rev_dns.lo: vcc_if.h
+vdir.lo fall_back.lo hash.lo random.lo round_robin.lo: vcc_if.h
 
 vcc_if.c vcc_if.h vmod_directors.rst vmod_directors.man.rst: $(vmodtool) $(vmod_srcdir)/vmod.vcc
 	@PYTHON@ $(vmodtool) $(vmodtoolargs) $(vmod_srcdir)/vmod.vcc

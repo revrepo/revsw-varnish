@@ -108,11 +108,11 @@ cnt_deliver(struct worker *wrk, struct req *req)
 
 	if (req->wrk->stats.cache_hit)
 		http_PrintfHeader(req->resp,
-		    "X-Rev-Id: %u %u", req->vsl->wid & VSL_IDENTMASK,
+		    "X-Varnish: %u %u", req->vsl->wid & VSL_IDENTMASK,
 		    req->obj->vxid & VSL_IDENTMASK);
 	else
 		http_PrintfHeader(req->resp,
-		    "X-Rev-Id: %u", req->vsl->wid & VSL_IDENTMASK);
+		    "X-Varnish: %u", req->vsl->wid & VSL_IDENTMASK);
 
 	/* We base Age calculation upon the last timestamp taken during
 	   client request processing. This gives some inaccuracy, but
@@ -124,7 +124,7 @@ cnt_deliver(struct worker *wrk, struct req *req)
 	http_PrintfHeader(req->resp, "Age: %.0f",
 	    fmax(0., req->t_prev - req->obj->exp.t_origin));
 
-	http_SetHeader(req->resp, "Via: 1.1 rev-cache");
+	http_SetHeader(req->resp, "Via: 1.1 varnish-v4");
 
 	if (cache_param->http_gzip_support && req->obj->gziped &&
 	    !RFC2616_Req_Gzip(req->http))
@@ -232,7 +232,7 @@ cnt_synth(struct worker *wrk, struct req *req)
 	http_PrintfHeader(h, "Date: %s", date);
 	http_SetHeader(h, "Server: Varnish");
 	http_PrintfHeader(req->resp,
-	    "X-Rev-Id: %u", req->vsl->wid & VSL_IDENTMASK);
+	    "X-Varnish: %u", req->vsl->wid & VSL_IDENTMASK);
 	http_PutResponse(h, "HTTP/1.1", req->err_code, req->err_reason);
 
 	AZ(req->synth_body);
@@ -426,8 +426,7 @@ cnt_lookup(struct worker *wrk, struct req *req)
 	switch (wrk->handling) {
 	case VCL_RET_DELIVER:
 		if (boc != NULL) {
-			AZ(oc->flags & (OC_F_FAILED|OC_F_PASS));
-			AZ(oc->exp_flags & OC_EF_DYING);
+			AZ(oc->flags & OC_F_PASS);
 			AZ(boc->busyobj);
 			VBF_Fetch(wrk, req, boc, o, VBF_BACKGROUND);
 		} else {
@@ -614,7 +613,7 @@ cnt_pipe(struct worker *wrk, struct req *req)
 	VSLb(bo->vsl, SLT_Begin, "bereq %u pipe", req->vsl->wid & VSL_IDENTMASK);
 	http_FilterReq(bo->bereq, req->http, 0);	// XXX: 0 ?
 	http_PrintfHeader(bo->bereq,
-	    "X-Rev-Id: %u", req->vsl->wid & VSL_IDENTMASK);
+	    "X-Varnish: %u", req->vsl->wid & VSL_IDENTMASK);
 	http_SetHeader(bo->bereq, "Connection: close");
 
 	VCL_pipe_method(req->vcl, wrk, req, bo, req->http->ws);
@@ -628,6 +627,7 @@ cnt_pipe(struct worker *wrk, struct req *req)
 	assert(WRW_IsReleased(wrk));
 	http_Teardown(bo->bereq);
 	VBO_DerefBusyObj(wrk, &bo);
+	THR_SetBusyobj(NULL);
 	return (REQ_FSM_DONE);
 }
 
@@ -723,6 +723,7 @@ cnt_recv(struct worker *wrk, struct req *req)
 		 * This really should be done earlier, but we want to capture
 		 * it in the VSL log.
 		 */
+		http_CollectHdr(req->http, H_X_Forwarded_For);
 		if (http_GetHdr(req->http, H_X_Forwarded_For, &xff)) {
 			http_Unset(req->http, H_X_Forwarded_For);
 			http_PrintfHeader(req->http, "X-Forwarded-For: %s, %s",

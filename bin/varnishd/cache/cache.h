@@ -125,7 +125,6 @@ struct waitinglist;
 struct worker;
 struct wrw;
 struct objiter;
-struct rev_vmod;
 
 #define DIGEST_LEN		32
 
@@ -171,19 +170,6 @@ struct ws {
 	char			*f;		/* (F)ree/front pointer */
 	char			*r;		/* (R)eserved length */
 	char			*e;		/* (E)nd of buffer */
-};
-
-/*--------------------------------------------------------------------
- * RevSW: Per VMOD data. It is copied between req and bereq.
- */
-
-typedef void* (*rev_vmod_dup_data_func)(struct ws *ws, void *data);
-
-struct rev_vmod {
-    unsigned		        magic;
-#define REV_VMOD_MAGIC		0x631cb1c3
-    void                    *data;
-    rev_vmod_dup_data_func  dup_data_func;
 };
 
 /*--------------------------------------------------------------------
@@ -439,6 +425,7 @@ struct objcore {
 	struct objhead		*objhead;
 	struct busyobj		*busyobj;
 	double			timer_when;
+	long			hits;
 
 	uint16_t		flags;
 #define OC_F_BUSY		(1<<1)
@@ -602,9 +589,6 @@ struct busyobj {
 	struct ws		ws_o[1];
 
 	struct vsb		*synth_body;
-
-    /* RevSW: revvar VMOD data, copied from req->vmod_revvar */
-    struct rev_vmod vmod_revvar;
 };
 
 /* Object structure --------------------------------------------------*/
@@ -751,9 +735,6 @@ struct req {
 
 	/* Synth content in vcl_synth */
 	struct vsb		*synth_body;
-
-    /* RevSW: revvar VMOD data */
-    struct rev_vmod vmod_revvar;
 };
 
 /*--------------------------------------------------------------------
@@ -1038,7 +1019,7 @@ void http_SetStatus(struct http *to, uint16_t status);
 const char *http_GetReq(const struct http *hp);
 int http_HdrIs(const struct http *hp, const char *hdr, const char *val);
 int http_IsHdr(const txt *hh, const char *hdr);
-enum sess_close http_DoConnection(const struct http *);
+enum sess_close http_DoConnection(struct http *);
 void http_CopyHome(struct http *hp);
 void http_Unset(struct http *hp, const char *hdr);
 void http_CollectHdr(struct http *hp, const char *hdr);

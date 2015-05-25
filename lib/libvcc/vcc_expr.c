@@ -668,10 +668,11 @@ vcc_Eval_SymFunc(struct vcc *tl, struct expr **e, const struct symbol *sym)
 static void
 vcc_expr4(struct vcc *tl, struct expr **e, enum var_type fmt)
 {
-	struct expr *e1, *e2, *e3;
+	struct expr *e1, *e2;
 	const char *ip;
 	const struct symbol *sym;
 	double d;
+	int i;
 
 	*e = NULL;
 	if (tl->t->tok == '(') {
@@ -683,28 +684,7 @@ vcc_expr4(struct vcc *tl, struct expr **e, enum var_type fmt)
 		return;
 	}
 	switch(tl->t->tok) {
-    case ID:
-        /* RevSW: add support for 'if(expr, expr_if_true, expr_if_false)' */
-        if (vcc_IdIs(tl->t, "if")) {
-            SkipToken(tl, ID);
-            SkipToken(tl, '(');
-            vcc_expr0(tl, &e1, BOOL);
-            ERRCHK(tl);
-
-            SkipToken(tl, ',');
-            e2 = NULL;
-            vcc_expr0(tl, &e2, fmt);
-            ERRCHK(tl);
-            SkipToken(tl, ',');
-            e3 = NULL;
-            vcc_expr0(tl, &e3, fmt);
-            SkipToken(tl, ')');
-
-            e2 = vcc_expr_edit(fmt, "(\v1) : (\v2)", e2, e3);
-            *e = vcc_expr_edit(fmt, "((\v1) ? \v2)", e1, e2);
-            return;
-        }
-
+	case ID:
 		/*
 		 * XXX: what if var and func/proc had same name ?
 		 * XXX: look for SYM_VAR first for consistency ?
@@ -786,9 +766,15 @@ vcc_expr4(struct vcc *tl, struct expr **e, enum var_type fmt)
 		} else if (fmt == REAL) {
 			e1 = vcc_mk_expr(REAL, "%f", vcc_DoubleVal(tl));
 			ERRCHK(tl);
-		} else {
+		} else if (fmt == INT) {
 			e1 = vcc_mk_expr(INT, "%.*s", PF(tl->t));
 			vcc_NextToken(tl);
+		} else {
+			vcc_NumVal(tl, &d, &i);
+			if (i)
+				e1 = vcc_mk_expr(REAL, "%f", d);
+			else
+				e1 = vcc_mk_expr(INT, "%ld", (long)d);
 		}
 		e1->constant = EXPR_CONST;
 		*e = e1;
@@ -1005,6 +991,7 @@ static const struct cmps {
 	NUM_REL(DURATION),
 	NUM_REL(BYTES),
 	NUM_REL(REAL),
+	NUM_REL(TIME),
 
 	{STRING,	T_EQ,	"!VRT_strcmp(\v1, \v2)" },
 	{STRING,	T_NEQ,	"VRT_strcmp(\v1, \v2)" },

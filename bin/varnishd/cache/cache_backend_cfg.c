@@ -48,24 +48,8 @@
 /*
  * The list of backends is not locked, it is only ever accessed from
  * the CLI thread, so there is no need.
- *
- * RevSW: That is no longer correct, we access this from the rev_dns
- * director. Backends can be added from another thread too, while they are
- * nuked only from the client thread.
  */
 static VTAILQ_HEAD(, backend) backends = VTAILQ_HEAD_INITIALIZER(backends);
-static struct lock backends_mtx;
-
-static void VBE_Lock(void)
-{
-    Lck_Lock(&backends_mtx);
-}
-
-static void VBE_Unlock(void)
-{
-    Lck_Unlock(&backends_mtx);
-}
-
 
 /*--------------------------------------------------------------------
  */
@@ -74,9 +58,7 @@ static void
 VBE_Nuke(struct backend *b)
 {
 
-    /* RevSW: This can be called indirectly from the rev_dns director,
-       from the recv thread */
-    //ASSERT_CLI();
+	ASSERT_CLI();
 	VTAILQ_REMOVE(&backends, b, list);
 	free(b->ipv4);
 	free(b->ipv4_addr);
@@ -97,8 +79,6 @@ VBE_Poll(void)
 	struct backend *b, *b2;
 
 	ASSERT_CLI();
-
-    VBE_Lock();
 	VTAILQ_FOREACH_SAFE(b, &backends, list, b2) {
 		assert(
 			b->admin_health == ah_healthy ||
@@ -108,7 +88,6 @@ VBE_Poll(void)
 		if (b->refcount == 0 && b->probe == NULL)
 			VBE_Nuke(b);
 	}
-    VBE_Unlock();
 }
 
 /*--------------------------------------------------------------------
@@ -138,9 +117,7 @@ VBE_DropRefLocked(struct backend *b, const struct acct_bereq *acct_bereq)
 	if (i > 0)
 		return;
 
-    /* RevSW: This can be called indirectly from the rev_dns director,
-       from the recv thread */
-    //ASSERT_CLI();
+	ASSERT_CLI();
 	VTAILQ_FOREACH_SAFE(vbe, &b->connlist, list, vbe2) {
 		VTAILQ_REMOVE(&b->connlist, vbe, list);
 		if (vbe->fd >= 0) {
@@ -150,9 +127,7 @@ VBE_DropRefLocked(struct backend *b, const struct acct_bereq *acct_bereq)
 		vbe->backend = NULL;
 		VBE_ReleaseConn(vbe);
 	}
-    VBE_Lock();
 	VBE_Nuke(b);
-    VBE_Unlock();
 }
 
 void
@@ -205,29 +180,24 @@ VBE_AddBackend(struct cli *cli, const struct vrt_backend *vb)
 	struct backend *b;
 	char buf[128];
 
-    AN(vb->vcl_name);
+	AN(vb->vcl_name);
 	assert(vb->ipv4_suckaddr != NULL || vb->ipv6_suckaddr != NULL);
 	(void)cli;
+	ASSERT_CLI();
 
-    /* RevSW: Can also add backends through the rev_dns director in the recv thread */
-    //ASSERT_CLI();
-
-    VBE_Lock();
-
-    /* Run through the list and see if we already have this backend */
+	/* Run through the list and see if we already have this backend */
 	VTAILQ_FOREACH(b, &backends, list) {
 		CHECK_OBJ_NOTNULL(b, BACKEND_MAGIC);
 		if (strcmp(b->vcl_name, vb->vcl_name))
 			continue;
-		if (b->ipv4 != NULL && vb->ipv4_suckaddr != NULL &&
+		if (vb->ipv4_suckaddr != NULL &&
 		    VSA_Compare(b->ipv4, vb->ipv4_suckaddr))
 			continue;
-		if (b->ipv6 != NULL && vb->ipv6_suckaddr != NULL &&
+		if (vb->ipv6_suckaddr != NULL &&
 		    VSA_Compare(b->ipv6, vb->ipv6_suckaddr))
 			continue;
 		b->refcount++;
 		b->vsc->vcls++;
-        VBE_Unlock();
 		return (b);
 	}
 
@@ -273,7 +243,6 @@ VBE_AddBackend(struct cli *cli, const struct vrt_backend *vb)
 
 	VTAILQ_INSERT_TAIL(&backends, b, list);
 	VSC_C_main->n_backend++;
-    VBE_Unlock();
 	return (b);
 }
 
@@ -286,11 +255,11 @@ vbe_str2adminhealth(const char *wstate)
 {
 
 	if (strcasecmp(wstate, "healthy") == 0)
-		return(ah_healthy);
+		return (ah_healthy);
 	if (strcasecmp(wstate, "sick") == 0)
-		return(ah_sick);
+		return (ah_sick);
 	if (strcmp(wstate, "auto") == 0)
-		return(ah_probe);
+		return (ah_probe);
 	return (ah_invalid);
 }
 
@@ -318,7 +287,7 @@ backend_find(struct cli *cli, const char *matcher, bf_func *func, void *priv)
 	ssize_t ip_l = 0;
 	const char *port_b = NULL;
 	ssize_t port_l = 0;
-	int found = 0;
+	int all, found = 0;
 	int i;
 
 	name_b = matcher;
@@ -373,27 +342,32 @@ backend_find(struct cli *cli, const char *matcher, bf_func *func, void *priv)
 			}
 		}
 	}
-    VBE_Lock();
-	VTAILQ_FOREACH(b, &backends, list) {
-		CHECK_OBJ_NOTNULL(b, BACKEND_MAGIC);
-		if (port_b != NULL && strncmp(b->port, port_b, port_l) != 0)
+
+	for (all = 0; all < 2 && found == 0; all++) {
+		if (all == 0 && name_b == NULL)
 			continue;
-		if (name_b != NULL && strncmp(b->vcl_name, name_b, name_l) != 0)
-			continue;
-		if (ip_b != NULL &&
-		    (b->ipv4_addr == NULL ||
-		      strncmp(b->ipv4_addr, ip_b, ip_l)) &&
-		    (b->ipv6_addr == NULL ||
-		      strncmp(b->ipv6_addr, ip_b, ip_l)))
-			continue;
-		found++;
-		i = func(cli, b, priv);
-		if (i) {
-            VBE_Unlock();
-            return(i);
-        }
+		VTAILQ_FOREACH(b, &backends, list) {
+			CHECK_OBJ_NOTNULL(b, BACKEND_MAGIC);
+			if (port_b != NULL &&
+			    strncmp(b->port, port_b, port_l) != 0)
+				continue;
+			if (name_b != NULL &&
+			    strncmp(b->vcl_name, name_b, name_l) != 0)
+				continue;
+			if (all == 0 && b->vcl_name[name_l] != '\0')
+				continue;
+			if (ip_b != NULL &&
+			    (b->ipv4_addr == NULL ||
+				strncmp(b->ipv4_addr, ip_b, ip_l)) &&
+			    (b->ipv6_addr == NULL ||
+				strncmp(b->ipv6_addr, ip_b, ip_l)))
+				continue;
+			found++;
+			i = func(cli, b, priv);
+			if (i)
+				return (i);
+		}
 	}
-    VBE_Unlock();
 	return (found);
 }
 
@@ -496,11 +470,12 @@ cli_backend_set_health(struct cli *cli, const char * const *av, void *priv)
 /*---------------------------------------------------------------------*/
 
 static struct cli_proto backend_cmds[] = {
-	{ "backend.list", "backend.list",
-	    "\tList all backends\n",
+	{ "backend.list", "backend.list [<backend_expression>]",
+	    "\tList backends.",
 	    0, 1, "", cli_backend_list },
-	{ "backend.set_health", "backend.set_health matcher state",
-	    "\tSet health status on a backend\n",
+	{ "backend.set_health",
+	    "backend.set_health <backend_expression> <state>",
+	    "\tSet health status on the backends.",
 	    2, 2, "", cli_backend_set_health },
 	{ NULL }
 };
@@ -510,7 +485,6 @@ static struct cli_proto backend_cmds[] = {
 void
 VBE_InitCfg(void)
 {
-    Lck_New(&backends_mtx , lck_cache_backends);
 
 	CLI_AddFuncs(backend_cmds);
 }
