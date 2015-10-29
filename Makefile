@@ -36,7 +36,7 @@ varnish4vmods-set-version: VER_TEMP_FILE=/tmp/varnish4mods.changes.$(shell date 
 varnish4vmods-set-version: VER_CHANGELOG=$(VARM4_SRC)/debian/changelog
 varnish4vmods-set-version: set-version
 
-varnish4vmods-pkg: varnish4vmods-set-version varnish4-pkg check-varnish-repo
+varnish4vmods-pkg: varnish4vmods-set-version varnish4-pkg
 	cd $(VARM4_SRC)/ && mk-build-deps -i -t "apt-get -y" && dpkg-buildpackage -d -uc
 	mkdir -p $(DEBS)/ && mv revsw-varn*.* $(DEBS)/ && chmod 666 $(DEBS)/*.*
 
@@ -46,7 +46,7 @@ varnish4vmods: docker
 	else \
 		if [ $(shell find $(VARM4_SRC)/ -newer $(DEBSINSIDE)/revsw-varnish4-mods-$(BUILD_MINOR).deb 2>/dev/null | wc -l) -gt 0 ]; then \
 			rm -f $(DEBS)/revsw4-varnish4-mods*.*; \
-			($(WRAPPER) make -f $(MAKEF) varnish4vmods-pkg undo-vmod-ver BUILD_MINOR=$(BUILD_MINOR); $(WRAPPER) make -f $(MAKEF) clean || $(WRAPPER) make -f $(MAKEF) undo-vmod-ver); \
+			($(WRAPPER) make -f $(MAKEF) check-varnish-repo varnish4vmods-pkg undo-vmod-ver BUILD_MINOR=$(BUILD_MINOR); $(WRAPPER) make -f $(MAKEF) clean || $(WRAPPER) make -f $(MAKEF) undo-vmod-ver); \
 		else\
 	    	echo "skipping varnish-vmods";\
 		fi \
