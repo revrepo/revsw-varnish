@@ -7,6 +7,7 @@ DIR=$(shell pwd)
 DOCKER_BIN=docker
 # set it to -ti when doing non-Jenkins build
 INTERACTIVE?=
+APT_REPO=/etc/apt/sources.list.d/revsw-varnish-on-ci.list
 DOCKER=docker run --rm $(INTERACTIVE) -v $(DIR):/work -w /work -e IN_DOCKER=true $(BUILDER)
 #WRAPPER=$(DOCKER)
 WRAPPER=sudo
@@ -53,11 +54,11 @@ clean:
 
 check-varnish-repo:
 	@mkdir -p $(DEBS) && cd $(DEBS) && dpkg-scanpackages . > Packages && rm -f *.bz2 && bzip2 -kf Packages
-	@if [ $(shell grep "$(DEBS)" /etc/apt/sources.list 2>/dev/null | wc -l) -lt 1 ]; then \
+	@if [ $(shell grep "$(DEBS)" $(APT_REPO) 2>/dev/null | wc -l) -lt 1 ]; then \
 		echo "Updating repository list to point to $(DEBS)"; \
-		echo "deb [trusted=yes] file://$(DEBS) /" >> /etc/apt/sources.list; cat /etc/apt/sources.list;\
+		echo "deb [trusted=yes] file://$(DEBS) /" >> $(APT_REPO); cat $(APT_REPO);\
 	fi
-	@apt-get update;
+	@apt-get update -o Dir::Etc::sourcelist="sources.list.d/revsw-varnish-on-ci.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0";
 
 
 define BUILD_IF_NEED_STATUS
