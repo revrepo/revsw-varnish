@@ -1,6 +1,6 @@
 BUILD_MINOR?=1
-DEBSINSIDE?=debs
-DEBS?=/work/$(DEBSINSIDE)
+DEBSINSIDE=debs
+DEBS=/home/jenkins/workspace/Proxy_Varnish_Build/$(DEBSINSIDE)
 MAKEF=$(word 1,$(MAKEFILE_LIST))
 DATE_STAMP=$(shell date "+%a, %d %b %Y %H:%M:%S %z")
 DIR=$(shell pwd)
@@ -50,7 +50,7 @@ build-if-need-status:
 	fi
 
 clean:
-	@git clean -fd .
+	@git clean -fd . 1>/dev/null
 
 check-varnish-repo:
 	@mkdir -p $(DEBS) && cd $(DEBS) && dpkg-scanpackages . > Packages && rm -f *.bz2 && bzip2 -kf Packages
@@ -58,7 +58,9 @@ check-varnish-repo:
 		echo "Updating repository list to point to $(DEBS)"; \
 		echo "deb [trusted=yes] file://$(DEBS) /" >> $(APT_REPO); cat $(APT_REPO);\
 	fi
+	@echo Packages updated
 	@apt-get update -o Dir::Etc::sourcelist="sources.list.d/revsw-varnish-on-ci.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0";
+	@echo APT updated
 
 
 define BUILD_IF_NEED_STATUS
