@@ -16,7 +16,6 @@ override_dh_auto_configure:
 	cd libvmod-revvar-4.0 && ./autogen.sh && CFLAGS="$(LOCAL_CFLAGS)" LDFLAGS="$(LOCAL_LDFLAGS)" ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
 	cd libvmod-header-4.0 && ./autogen.sh && CFLAGS="$(LOCAL_CFLAGS)" LDFLAGS="$(LOCAL_LDFLAGS)" ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
 	cd libvmod-timers-4.0 && ./autogen.sh && CFLAGS="$(LOCAL_CFLAGS)" LDFLAGS="$(LOCAL_LDFLAGS)" ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
-	cd libvmod-var-4.0 && ./autogen.sh && CFLAGS="$(LOCAL_CFLAGS)" LDFLAGS="$(LOCAL_LDFLAGS)" ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
 
 override_dh_gencontrol:
 	echo "Varnish:ABI=$(VMOD_ABI)" >> debian/substvars
@@ -34,7 +33,6 @@ override_dh_auto_build:
 	$(MAKE) -C libvmod-revvar-4.0
 	$(MAKE) -C libvmod-header-4.0
 	$(MAKE) -C libvmod-timers-4.0
-	$(MAKE) -C libvmod-var-4.0
 
 override_dh_auto_install:
 	$(MAKE) -C libvmod-querystring-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish4-modules install
@@ -43,7 +41,6 @@ override_dh_auto_install:
 	$(MAKE) -C libvmod-revvar-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish4-modules install
 	$(MAKE) -C libvmod-header-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish4-modules install
 	$(MAKE) -C libvmod-timers-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish4-modules install
-	$(MAKE) -C libvmod-var-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish4-modules install
 
 override_dh_auto_clean:
 	$(MAKE) -C libvmod-querystring-4.0 distclean || true
@@ -52,7 +49,6 @@ override_dh_auto_clean:
 	$(MAKE) -C libvmod-revvar-4.0 distclean || true
 	$(MAKE) -C libvmod-header-4.0 distclean || true
 	$(MAKE) -C libvmod-timers-4.0 distclean || true
-	$(MAKE) -C libvmod-var-4.0 distclean || true
 
 override_dh_strip:
 	dh_strip --dbg-package=revsw-varnish4-modules-dbg
