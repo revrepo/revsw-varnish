@@ -11,7 +11,7 @@ APT_REPO=/etc/apt/sources.list.d/revsw-varnish-on-ci.list
 DOCKER=docker run --rm $(INTERACTIVE) -v $(DIR):/work -w /work -e IN_DOCKER=true $(BUILDER)
 #WRAPPER=$(DOCKER)
 WRAPPER=sudo
-BUILDER=revsw_proxy_builder_v6
+BUILDER=revsw_proxy_builder_v7
 
 docker: 
 ifeq ($(IN_DOCKER),"true")
