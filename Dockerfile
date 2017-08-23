@@ -3,6 +3,8 @@ FROM ubuntu:14.04
 MAINTAINER Igor Kukushkin <igor@pbne.mygbiz.com>
 
 #ADD .pbuilderrc /tmp/.pbuilderrc
+RUN apt-get install software-properties-common python-software-properties
+RUN add-apt-repository ppa:webupd8team/java && apt-get update && apt-get install oracle-java8-installer
 RUN apt-get update && apt-get -y install build-essential pbuilder autoconf automake debhelper dh-virtualenv debootstrap devscripts libtool pkg-config nano git equivs \
 binfmt-support clang clang-3.4 fontconfig-config fonts-dejavu-core geoip-bin \
   geoip-database libclang-common-3.4-dev libclang1-3.4 libexpat1-dev \
