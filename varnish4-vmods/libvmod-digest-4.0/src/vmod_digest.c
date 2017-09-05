@@ -30,7 +30,7 @@
  * Digest vmod for Varnish, using libmhash.
  * See README.rst for usage.
  */
-#include <stdbool.h>
+
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -51,15 +51,10 @@
 #undef PACKAGE_VERSION
 #undef VERSION
 
-#include "vcl.h"
 #include "vrt.h"
 #include "cache/cache.h"
 #include "vcc_if.h"
 #include "config.h"
-
-#ifndef MIN
-#define MIN(a,b) ((a) > (b) ? (b) : (a))
-#endif
 
 #ifndef VRT_CTX
 #define VRT_CTX		const struct vrt_ctx *ctx
@@ -96,13 +91,10 @@ vmod_digest_alpha_init(struct e_alphabet *alpha)
 }
 
 int
-init_function(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e e)
+init_function(struct vmod_priv *priv, const struct VCL_conf *conf)
 {
-	(void)ctx;
 	(void)priv;
-
-	if (e != VCL_EVENT_LOAD)
-		return (0);
+	(void)conf;
 
     	alphabet[BASE64].b64 =
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"
@@ -167,123 +159,88 @@ base64_decode(struct e_alphabet *alpha, char *d, unsigned dlen, const char *s)
 }
 
 /*
- * Convert a hex character into an int
- */
-static unsigned char
-char_to_int (char c)
-{
-	if (c >= '0' && c <= '9')
-		return c - '0';
-	else if (c >= 'a' && c <= 'f')
-		return c - 87;
-	else if (c >= 'A' && c <= 'F')
-		return c - 55;
-	else
-		return 0;
-}
-
-/*
- * Convert a hex value into an 8bit int
- */
-static unsigned char
-hex_to_int(const char *in, size_t inlen)
-{
-	unsigned char value = 0;
-
-	assert(inlen >= 2);
-
-	value = char_to_int(in[0]) << 4;
-	value += char_to_int(in[1]);
-
-	return value;
-}
-
-/*
  * Base64-encode *in (size: inlen) into *out, max outlen bytes. If there is
  * insufficient space, it will bail out and return -1. Otherwise, it will
  * null-terminate and return the used space.
  * The alphabet `a` defines... the alphabet. Padding is optional.
  * Inspired heavily by gnulib/Simon Josefsson (as referenced in RFC4648)
+ *
+ * XXX: tmp[] and idx are used to ensure the reader (and author) retains
+ * XXX: a limited amount of sanity. They are strictly speaking not
+ * XXX: necessary, if you don't mind going crazy.
+ *
+ * FIXME: outlenorig is silly. Flip the logic.
  */
 static size_t
-base64_encode(struct e_alphabet *alpha, const char *in,
-    size_t inlen, int is_hex, char *out, size_t outlen)
+base64_encode (struct e_alphabet *alpha, const char *in,
+		size_t inlen, char *out, size_t outlen)
 {
-	size_t out_used = 0;
+	size_t outlenorig = outlen;
+	unsigned char tmp[3], idx;
 
-	/*
-	 * If reading a hex string, if "0x" is present, strip. When no further
-	 * characters follow, we return an empty output string.
-	 */
-	if (is_hex && inlen > 2 && in[0] == '0' && in[1] == 'x') {
-		in += 2;
-		inlen -= 2;
-	}
-
-	/*
-	 * B64 requires 4*ceil(n/3) bytes of space + 1 nul terminator
-	 * byte to generate output for a given input length n. When is_hex is
-	 * set, each character of inlen represents half a byte, hence the
-	 * division by 6.
-	 */
-	if ((!is_hex && outlen < 4 * (inlen + 2 / 3) + 1) ||
-	    ( is_hex && outlen < 4 * (inlen + 5 / 6) + 1))
+	if (outlen<4)
 		return -1;
 
-	while ((!is_hex && inlen) || (is_hex && inlen >= 2)) {
-		unsigned char tmp[3] = {0, 0, 0};
-		unsigned char idx;
-		int min_avail = is_hex ? MIN(inlen, 6) : MIN(inlen, 3);
-		int nread = 0;
-		int off = 0;
+	if (inlen == 0) {
+		*out = '\0';
+		return (1);
+	}
 
-		if (is_hex) {
-			while (min_avail >= 2) {
-				tmp[off++] = hex_to_int(in, inlen);
-				in += 2;
-				inlen -= 2;
-				nread++;
-				min_avail -= 2;
-			}
-		} else {
-			memcpy(tmp, in, min_avail);
-			in += min_avail;
-			inlen -= min_avail;
-			nread = min_avail;
-		}
+	while (1) {
+		assert(inlen);
+		assert(outlen>3);
+
+		tmp[0] = (unsigned char) in[0];
+		tmp[1] = (unsigned char) in[1];
+		tmp[2] = (unsigned char) in[2];
 
 		*out++ = alpha->b64[(tmp[0] >> 2) & 0x3f];
 
 		idx = (tmp[0] << 4);
-		if (nread > 1)
+		if (inlen>1)
 			idx += (tmp[1] >> 4);
 		idx &= 0x3f;
 		*out++ = alpha->b64[idx];
 
-		if (nread > 1) {
+		if (inlen>1) {
 			idx = (tmp[1] << 2);
-			if (nread > 2)
+			if (inlen>2)
 				idx += tmp[2] >> 6;
 			idx &= 0x3f;
 
 			*out++ = alpha->b64[idx];
-		} else if (alpha->padding)
-			*out++ = alpha->padding;
+		} else {
+			if (alpha->padding)
+				*out++ = alpha->padding;
+		}
 
-		if (nread > 2)
+		if (inlen>2) {
 			*out++ = alpha->b64[tmp[2] & 0x3f];
-		else if (alpha->padding)
-			*out++ = alpha->padding;
+		} else {
+			if (alpha->padding)
+				*out++ = alpha->padding;
+		}
 
-		if (alpha->padding)
-			out_used += 4;
-		else
-			out_used += 2 + (nread - 1);
+		/*
+		 * XXX: Only consume 4 bytes, but since we need a fifth for
+		 * XXX: NULL later on, we might as well test here.
+		 */
+		if (outlen<5)
+			return -1;
+
+		outlen -= 4;
+
+		if (inlen<4)
+			break;
+
+		inlen -= 3;
+		in += 3;
 	}
 
+	assert(outlen);
+	outlen--;
 	*out = '\0';
-
-	return out_used + 1;
+	return outlenorig-outlen;
 }
 
 VCL_STRING
@@ -293,7 +250,7 @@ vmod_hmac_generic(VRT_CTX, hashid hash, const char *key, const char *msg)
 	unsigned char mac[blocksize];
 	unsigned char *hexenc;
 	unsigned char *hexptr;
-	size_t j;
+	unsigned j;
 	MHASH td;
 
 	assert(msg);
@@ -327,14 +284,14 @@ vmod_hmac_generic(VRT_CTX, hashid hash, const char *key, const char *msg)
 	for (j = 0; j < blocksize; j++) {
 		sprintf((char*)hexptr,"%.2x", mac[j]);
 		hexptr+=2;
-		assert((hexptr-hexenc)<(2*(long)blocksize + 3));
+		assert((size_t)(hexptr - hexenc) < (2 * blocksize + 3));
 	}
 	*hexptr = '\0';
 	return (const char *)hexenc;
 }
 
 VCL_STRING
-vmod_base64_generic(VRT_CTX, enum alphabets a, const char *msg, int is_hex)
+vmod_base64_generic(VRT_CTX, enum alphabets a, const char *msg)
 {
 	char *p;
 	int u;
@@ -347,7 +304,7 @@ vmod_base64_generic(VRT_CTX, enum alphabets a, const char *msg, int is_hex)
 
 	u = WS_Reserve(ctx->ws,0);
 	p = ctx->ws->f;
-	u = base64_encode(&alphabet[a],msg,strlen(msg),is_hex,p,u);
+	u = base64_encode(&alphabet[a],msg,strlen(msg),p,u);
 	if (u < 0) {
 		WS_Release(ctx->ws,0);
 		return NULL;
@@ -384,7 +341,7 @@ vmod_hash_generic(VRT_CTX, hashid hash, const char *msg)
 {
 	MHASH td;
 	unsigned char h[mhash_get_block_size(hash)];
-	unsigned int i;
+	unsigned i;
 	char *p;
 	char *ptmp;
 
@@ -395,7 +352,7 @@ vmod_hash_generic(VRT_CTX, hashid hash, const char *msg)
 	p = WS_Alloc(ctx->ws,mhash_get_block_size(hash)*2 + 1);
 	AN(p);
 	ptmp = p;
-	for (i = 0; i<mhash_get_block_size(hash);i++) {
+	for (i = 0; i < mhash_get_block_size(hash); i++) {
 		sprintf(ptmp,"%.2x",h[i]);
 		ptmp+=2;
 	}
@@ -445,15 +402,7 @@ vmod_ ## codec_low (VRT_CTX, const char *msg) \
 { \
 	if (msg == NULL) \
 		msg = ""; \
-	return vmod_base64_generic(ctx,codec_big,msg, 0); \
-} \
-\
-VCL_STRING __match_proto__ () \
-vmod_ ## codec_low ## _hex (VRT_CTX, const char *msg) \
-{ \
-	if (msg == NULL) \
-		msg = ""; \
-	return vmod_base64_generic(ctx,codec_big,msg, 1); \
+	return vmod_base64_generic(ctx,codec_big,msg); \
 } \
 \
 const char * __match_proto__ () \
