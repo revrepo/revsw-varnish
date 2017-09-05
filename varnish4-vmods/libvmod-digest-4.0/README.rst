@@ -8,8 +8,8 @@ Varnish Digest Module
 
 :Manual section: 3
 :Author: Kristian Lyngstøl
-:Date: 2016-03-16
-:Version: 1.0.1
+:Date: 2011-09-22
+:Version: 0.3
 
 SYNOPSIS
 ========
@@ -25,9 +25,6 @@ SYNOPSIS
         digest.base64(<string>);
         digest.base64url(<string>);
         digest.base64url_nopad(<string>);
-        digest.base64_hex(<string>);
-        digest.base64url_hex(<string>);
-        digest.base64url_nopad_hex(<string>);
         digest.base64_decode(<string>);
         digest.base64url_decode(<string>);
         digest.base64url_nopad_decode(<string>);
@@ -80,7 +77,8 @@ Example VCL::
 	import digest;
 
 	sub vcl_recv {
-		if (digest.hmac_sha256("key",req.http.x-data) != req.http.x-data-sig)
+		if (digest.hmac_sha256("key",req.http.x-some-header) !=
+			digest.hmac_sha256("key",req.http.x-some-header-signed))
 		{
 			return (synth(401, "Naughty user!"));
 		}
@@ -130,27 +128,6 @@ Example
                 set resp.http.x-data-sig = 
                         digest.base64({"content with
                         newline in it"});
-
-base64_hex, base64url_hex, base64url_nopad_hex
------------------------------------------------
-
-Prototype
-        ::
-
-                digest.base64_hex(<string>);
-                digest.base64url_hex(<string>);
-                digest.base64url_nopad_hex(<string>);
-Returns
-        String
-Description
-        Returns the base64-encoded version of the hex encoded input-string. The
-        input-string can start with an optional 0x. Input is hex-decoded into binary
-        and the encoding is identical to base64, base64url, and base64url_nopad.
-Example
-        ::
-
-                set resp.http.x-data-sig =
-                        digest.base64_hex("0xdd26bfddf122c1055d4c");
 
 hash_(algorithm)
 ----------------
@@ -264,15 +241,25 @@ Make targets:
 * make distcheck - run check and prepare a tarball of the vmod.
 
 
-AUTHOR
-======
+ACKNOWLEDGEMENTS
+================
 
-Original author: Kristian Lyngstøl <kristian@varnish-software.com>.
+Author: Kristian Lyngstøl <kristian@varnish-software.com>, Varnish Software AS
 
 This Vmod was written for Media Norge, Schibsted and others.
 
-The bulk of the functionality is acquired through libmhash.
+The bulk of the functionality is acquired through libmhash
 
+Bug reports by: Magnus Hagander
+
+HISTORY
+=======
+
+Version 0.1: Initial version, mostly feature-complete
+
+Version 0.2: Mainly build-related cleanups, no feature-changes
+
+Version 0.3: Handle empty/NULL strings for hashes and keys.
 
 BUGS
 ====
@@ -295,3 +282,11 @@ SEE ALSO
 * varnishd(1)
 * vcl(7)
 * https://github.com/varnish/libvmod-digest
+
+COPYRIGHT
+=========
+
+This document is licensed under the same license as the
+libvmod-digest project. See LICENSE for details.
+
+* Copyright (c) 2011 Varnish Software
