@@ -291,6 +291,51 @@ vmod_hmac_generic(VRT_CTX, hashid hash, const char *key, const char *msg)
 }
 
 VCL_STRING
+vmod_hmac_generic_base64(VRT_CTX, hashid hash, const char *key, const char *msg)
+{
+	size_t blocksize = mhash_get_block_size(hash);
+	unsigned char mac[blocksize];
+	MHASH td;
+	char *p;
+	int u;
+	char decoded_key[512];
+
+	assert(msg);
+	assert(key);
+	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
+	CHECK_OBJ_NOTNULL(ctx->ws, WS_MAGIC);
+
+	base64_decode(&alphabet[BASE64], decoded_key, 512, key);
+
+	/*
+	 * XXX: From mhash(3):
+	 * size_t mhash_get_hash_pblock(hashid type);
+	 *     It returns the block size that the algorithm operates. This
+	 *     is used in mhash_hmac_init. If the return value is 0 you
+	 *     shouldn't use that algorithm in  HMAC.
+	 */
+	assert(mhash_get_hash_pblock(hash) > 0);
+
+	td = mhash_hmac_init(hash, (void *) decoded_key, strlen(decoded_key),
+		mhash_get_hash_pblock(hash));
+	mhash(td, msg, strlen(msg));
+	mhash_hmac_deinit(td,mac);
+
+	/*
+	 * BASE64-encode
+	 */
+	u = WS_Reserve(ctx->ws,0);
+	p = ctx->ws->f;
+	u = base64_encode(&alphabet[BASE64],(const char *)mac,blocksize,p,u);
+	if (u < 0) {
+		WS_Release(ctx->ws,0);
+		return NULL;
+	}
+	WS_Release(ctx->ws,u);
+	return p;
+}
+
+VCL_STRING
 vmod_base64_generic(VRT_CTX, enum alphabets a, const char *msg)
 {
 	char *p;
@@ -437,6 +482,21 @@ vmod_hmac_ ## hash(VRT_CTX, const char *key, const char *msg) \
 VMOD_HMAC_FOO(sha256,SHA256)
 VMOD_HMAC_FOO(sha1,SHA1)
 VMOD_HMAC_FOO(md5,MD5)
+
+#define VMOD_HMAC_BASE64_FOO(hash,hashup) \
+VCL_STRING \
+vmod_hmac_ ## hash(VRT_CTX, const char *key, const char *msg) \
+{ \
+	if (msg == NULL) \
+		msg = ""; \
+	if (key == NULL) \
+		return NULL; \
+	return vmod_hmac_generic_base64(ctx, MHASH_ ## hashup, key, msg); \
+}
+
+VMOD_HMAC_BASE64_FOO(sha256_base64,SHA256)
+VMOD_HMAC_BASE64_FOO(sha1_base64,SHA1)
+VMOD_HMAC_BASE64_FOO(md5_base64,MD5)
 
 
 VCL_STRING __match_proto__()
