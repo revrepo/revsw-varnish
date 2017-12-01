@@ -1,4 +1,5 @@
 etc/varnish/default.vcl
+etc/varnish/revsw.vcl
 usr/bin/*
 usr/sbin/*
 usr/lib/*/varnish
