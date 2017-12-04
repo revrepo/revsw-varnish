@@ -50,4 +50,5 @@ DAEMON_OPTS="-a 127.0.0.1:8080,127.0.0.1:8443 \
              -p thread_pool_max=4000 \
              -p thread_pool_add_delay=1 \
              -p timeout_linger=1 \
+             -p thread_pool_stack=96k \
              -p feature=+esi_disable_xml_check"
