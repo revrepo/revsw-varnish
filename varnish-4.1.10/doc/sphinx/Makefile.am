@@ -25,7 +25,7 @@ help:
 	@echo "  doctest   to run all doctests embedded in the documentation (if enabled)"
 
 clean:
-	-rm -rf $(BUILDDIR)/*
+#	-rm -rf $(BUILDDIR)/*
 
 # use index.rst as an indicator if we have copied already
 .PHONY: link_srcdir
@@ -119,7 +119,7 @@ dist-hook:
 	rm $(distdir)/../html/.buildinfo $(distdir)/../html/*.inv
 
 distclean-local:
-	rm -rf $(BUILDDIR)
+#	rm -rf $(BUILDDIR)
 
 include/params.rst: $(top_builddir)/bin/varnishd/varnishd
 	$(top_builddir)/bin/varnishd/varnishd -x dumprstparam > include/params.rst

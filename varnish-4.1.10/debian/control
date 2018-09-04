@@ -1,0 +1,97 @@
+Source: revsw-varnish4
+Section: web
+Priority: optional
+Maintainer: Varnish Package Maintainers <pkg-varnish-devel@lists.alioth.debian.org>
+Uploaders:
+ Jan Wagner <waja@cyconet.org>,
+ Lars Bahner <bahner@debian.org>,
+ Stig Sandbeck Mathisen <ssm@debian.org>,
+ Tollef Fog Heen <tfheen@debian.org>,
+Build-Depends:
+ automake,
+ autotools-dev,
+ debhelper (>= 9),
+ dh-autoreconf,
+ dh-systemd,
+ libedit-dev,
+ libjemalloc-dev,
+ libncurses-dev,
+ libpcre3-dev,
+ libtool,
+ pkg-config,
+ python-docutils,
+ xsltproc,
+Vcs-Browser: https://anonscm.debian.org/cgit/pkg-varnish/pkg-varnish.git
+Vcs-Git: git://anonscm.debian.org/pkg-varnish/pkg-varnish.git
+Homepage: http://varnish-cache.org/
+Standards-Version: 3.9.6
+Testsuite: autopkgtest
+
+Package: revsw-varnish4
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+ adduser,
+ gcc,
+ libc6-dev | libc6.1-dev | libc-dev,
+Suggests: revsw-varnish4-doc
+Replaces: libvarnishapi1 (<< 3.0.0-5), varnish, revsw-varnish
+Breaks: varnish, revsw-varnish
+Provides: ${Varnish:ABI}
+Description: state of the art, high-performance web accelerator
+ Varnish Cache is a state of the art web accelerator written with
+ performance and flexibility in mind.
+ .
+ Varnish Cache stores web pages in memory so web servers don't have to
+ create the same web page over and over again. Varnish serves pages
+ much faster than any application server; giving the website a
+ significant speed up.
+ .
+ Some of the features include:
+  * A modern design
+  * VCL - a very flexible configuration language
+  * Load balancing with health checking of backends
+  * Partial support for ESI - Edge Side Includes
+  * URL rewriting
+  * Graceful handling of "dead" backends
+
+Package: revsw-varnish4-doc
+Replaces: varnish-doc, revsw-varnish-doc
+Breaks: varnish-doc, revsw-varnish-doc
+Architecture: all
+Section: doc
+Depends: ${misc:Depends}, libjs-jquery, libjs-underscore
+Description: documentation for Varnish Cache
+ This package contains HTML documentation for Varnish Cache.
+
+Package: revsw-libvarnish4api
+Section: libs
+Architecture: any
+Replaces: libvarnishapi1, revsw-libvarnishapi1
+Breaks: revsw-libvarnish1, revsw-libvarnishapi1, libvarnishapi1
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: shared libraries for Varnish
+ Shared libraries for the Varnish HTTP accelerator.
+
+Package: revsw-libvarnish4api-dev
+Section: libdevel
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, revsw-libvarnish4api (= ${binary:Version})
+Provides: revsw-libvarnish4-dev
+Replaces: libvarnishapi-dev, revsw-libvarnishapi-dev
+Breaks: revsw-libvarnishapi-dev, libvarnishapi-dev
+Description: development files for Varnish
+ Development files for the Varnish HTTP accelerator.
+
+Package: revsw-varnish4-dbg
+Replaces: varnish-dbg, revsw-varnish-dbg
+Breaks: varnish-dbg, revsw-varnish-dbg
+Section: debug
+Priority: extra
+Architecture: any
+Depends: revsw-varnish4 (= ${binary:Version}),
+         ${misc:Depends}
+Description: debugging symbols for varnish
+ This package contains the detached debugging symbols for varnish.
+ .
+ Varnish Cache is a state of the art web accelerator written with
+ performance and flexibility in mind.
