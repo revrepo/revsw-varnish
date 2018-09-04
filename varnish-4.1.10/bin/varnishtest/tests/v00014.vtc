@@ -1,0 +1,66 @@
+varnishtest "Check req.backend.healthy"
+
+server s1 {
+	rxreq
+	sema r1 sync 2
+	expect req.url == "/"
+	txresp -body "slash"
+	accept
+	rxreq
+	sema r2 sync 2
+	sema r3 sync 2
+	expect req.url == "/"
+	txresp -body "slash"
+	accept
+	sema r4 sync 2
+} -start
+
+varnish v1 -vcl {
+
+	import ${vmod_std};
+
+	probe foo {
+		.url = "/";
+		.timeout = 1s;
+		.interval = 1s;
+		.window = 3;
+		.threshold = 2;
+		.initial = 0;
+	}
+
+	backend default {
+		.host = "${s1_addr}";
+		.port = "${s1_port}";
+		.max_connections = 1;
+		.probe = foo;
+	}
+
+	sub vcl_recv {
+		if (std.healthy(default)) {
+			return(synth(200,"Backend healthy"));
+		} else {
+			return(synth(500,"Backend sick"));
+		}
+	}
+} -start
+
+varnish v1 -cliok "backend.list -p"
+
+client c1 {
+	txreq
+	rxresp
+	expect resp.status == 500
+
+	sema r1 sync 2
+
+	sema r2 sync 2
+	txreq
+	rxresp
+	expect resp.status == 500
+
+	sema r3 sync 2
+	sema r4 sync 2
+	txreq
+	rxresp
+	expect resp.status == 200
+} -run

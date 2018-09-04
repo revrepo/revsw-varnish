@@ -1,0 +1,107 @@
+/*
+ * Toplevel control file for FlexeLint
+ */
+
+///////////////////////////////////////////////////////////////////////
+// build/config related
+
+-efile(451, "tbl/*.h")				// No include guard
+
+-efile(451, ../../config.h)			// No include guard
+-header(../../config.h)
++libh(../../config.h)
+
+///////////////////////////////////////////////////////////////////////
+// General stylistic issues
+-e726		// Extraneous comma ignored
+-e641		// Converting enum '...' to int
+-e763		// Redundant declaration for symbol '...' previously declared
+
+// +e958		// padding
+
+///////////////////////////////////////////////////////////////////////
+// System/Posix/Iso-C library related
+
+-emacro(747, isnan)     // significant coercion
+
+// ignore retval
+-esym(534, printf)
+-esym(534, fprintf)
+-esym(534, sprintf)
+
+-esym(534, memset)
+-esym(534, memcpy)
+-esym(534, memmove)
+
+-esym(534, strcat)
+-esym(534, strcpy)
+-esym(534, strlcpy)
+-esym(534, strncpy)
+
+-esym(534, sleep)
+-esym(534, usleep)
+
+///////////////////////////////////////////////////////////////////////
+// <vas.h>
+
+-sem(VAS_Fail, r_no)		// does not return
+-emacro(506, assert)		// constant value boolean
+-emacro(827, assert)		// loop not reachable
+-emacro(774, assert)		// boolean always true
+-emacro(731, assert)		// boolean arg to eq/non-eq
+-emacro(731, xxxassert)		// arg to eq/non-eq
+-emacro(527, WRONG)		// unreachable code
+-emacro(774, VALID_OBJ)		// boolean always true
+
+///////////////////////////////////////////////////////////////////////
+// <vsb.h>
+
+-esym(759, VSB_*)		// header decl could be moved
+-esym(765, VSB_*)		// extern could be made static
+-esym(714, VSB_*)		// symb not ref
+-sem(VSB_new, @p == (1p ? 1p : malloc(1)))
+-sem(VSB_delete, custodial(1))
+
+// ignore retval
+-esym(534, VSB_cat)
+-esym(534, VSB_bcat)
+-esym(534, VSB_putc)
+-esym(534, VSB_printf)
+-esym(534, VSB_vprintf)
+-esym(534, VSB_putc)
+
+
+
+///////////////////////////////////////////////////////////////////////
+// <vqueue.h>
+
+-esym(755, VLIST_*)	// Global macro not ref.
+-esym(755, VSLIST_*)
+-esym(755, VSTAILQ_*)
+-esym(755, VTAILQ_*)
+
+// 506 = constant value boolean
+-emacro(506, VTAILQ_FOREACH_REVERSE_SAFE)
+-emacro(506, VTAILQ_FOREACH_SAFE)
+-emacro(506, VSTAILQ_FOREACH_SAFE) // constant value boolean
+
+// 826 = Suspicious pointer-to-pointer conversion (area to o small)
+-emacro((826), VTAILQ_LAST)
+-emacro((826), VTAILQ_PREV)
+
+-emacro(740, VTAILQ_LAST) // Unusual pointer cast (incompatible indirect types)
+-emacro(740, VTAILQ_PREV) // Unusual pointer cast (incompatible indirect types)
+
+///////////////////////////////////////////////////////////////////////
+
+-esym(785,VSL_tags)				// Sparse array
+
+///////////////////////////////////////////////////////////////////////
+// Noise reduction, review periodically
+
+-e459	// unlocked access from func-ptr
+-e679	// Suspicious Truncation in arithmetic expression combining with pointer
+-e712	// Loss of precision (___) (___ to ___)
+-e732	// Loss of sign (___) (___ to ___)
+-e747	// Significant prototype coercion (___) ___ to ___
+
