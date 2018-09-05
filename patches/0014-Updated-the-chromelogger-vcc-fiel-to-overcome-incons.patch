@@ -1,0 +1,24 @@
+From 469d428f3d176c7daf7f6f32dc455cc8f29e16d9 Mon Sep 17 00:00:00 2001
+From: vimal gupta <vimal.gupta@techvedika.com>
+Date: Fri, 19 Dec 2014 14:42:41 +0530
+Subject: [PATCH 14/63] Updated the chromelogger vcc fiel to overcome
+ inconsistent metadata issue while importing
+
+---
+ libvmod-chromelogger-4.0/src/vmod_chromelogger.vcc | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/libvmod-chromelogger-4.0/src/vmod_chromelogger.vcc b/libvmod-chromelogger-4.0/src/vmod_chromelogger.vcc
+index df7bf07..f9d4cde 100644
+--- a/libvmod-chromelogger-4.0/src/vmod_chromelogger.vcc
++++ b/libvmod-chromelogger-4.0/src/vmod_chromelogger.vcc
+@@ -1,3 +1,3 @@
+-$Module chromelogger
+-Function VOID log(STRING)
+-Function STRING collect()
++$Module chromelogger 3 Varnish chromelogger Module
++$Function VOID log(STRING)
++$Function STRING collect()
+-- 
+2.7.4
+

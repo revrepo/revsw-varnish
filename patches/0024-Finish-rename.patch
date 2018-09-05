@@ -1,0 +1,65 @@
+From 503db0cf3cd3ead0eaa21967aae06db45493a9af Mon Sep 17 00:00:00 2001
+From: sorinrevsw <sorin.revsw@gmail.com>
+Date: Sat, 27 Dec 2014 12:20:56 +0200
+Subject: [PATCH 24/63] Finish rename.
+
+---
+ debian/changelog | 6 ++++++
+ debian/rules     | 8 ++++----
+ 2 files changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/debian/changelog b/debian/changelog
+index fab1de1..0e8bff6 100644
+--- a/debian/changelog
++++ b/debian/changelog
+@@ -1,3 +1,9 @@
++revsw-varnish-modules (0.5) unstable; urgency=medium
++
++  * Varnish 4 VMODs.
++
++ -- Sorin Otescu <sorin@revsw.com>  Sat, 27 Dec 2014 12:18:02 +0200
++
+ revsw-varnish-modules (0.4-1) unstable; urgency=medium
+ 
+   * Added global version for get/set int, bool, real and duration.
+diff --git a/debian/rules b/debian/rules
+index 0060708..0a1addc 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -8,7 +8,7 @@ VMOD_ABI := $(shell printf '\#include "vmod_abi.h"\nVMOD_ABI_Version' | cpp - -I
+ override_dh_auto_configure:
+ 	cd libvmod-chromelogger-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+ 	cd libvmod-cookie-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+-	cd libvmod-var-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
++	cd libvmod-revvar-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+ 	cd libvmod-header-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+ 	cd libvmod-timers-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+ 
+@@ -24,21 +24,21 @@ override_dh_gencontrol:
+ override_dh_auto_build:
+ 	$(MAKE) -C libvmod-chromelogger-4.0
+ 	$(MAKE) -C libvmod-cookie-4.0
+-	$(MAKE) -C libvmod-var-4.0
++	$(MAKE) -C libvmod-revvar-4.0
+ 	$(MAKE) -C libvmod-header-4.0
+ 	$(MAKE) -C libvmod-timers-4.0
+ 
+ override_dh_auto_install:
+ 	$(MAKE) -C libvmod-chromelogger-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+ 	$(MAKE) -C libvmod-cookie-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+-	$(MAKE) -C libvmod-var-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
++	$(MAKE) -C libvmod-revvar-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+ 	$(MAKE) -C libvmod-header-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+ 	$(MAKE) -C libvmod-timers-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+ 
+ override_dh_auto_clean:
+ 	$(MAKE) -C libvmod-chromelogger-4.0 distclean || true
+ 	$(MAKE) -C libvmod-cookie-4.0 distclean || true
+-	$(MAKE) -C libvmod-var-4.0 distclean || true
++	$(MAKE) -C libvmod-revvar-4.0 distclean || true
+ 	$(MAKE) -C libvmod-header-4.0 distclean || true
+ 	$(MAKE) -C libvmod-timers-4.0 distclean || true
+ 
+-- 
+2.7.4
+

@@ -1,0 +1,71 @@
+From b9da309225fb03d10a2790484c94c2aa29c56796 Mon Sep 17 00:00:00 2001
+From: sorinrevsw <sorin.revsw@gmail.com>
+Date: Sun, 28 Dec 2014 17:12:37 +0200
+Subject: [PATCH 28/63] Updated README.
+
+---
+ libvmod-revvar-4.0/README | 39 ++++++++++++++++++---------------------
+ 1 file changed, 18 insertions(+), 21 deletions(-)
+
+diff --git a/libvmod-revvar-4.0/README b/libvmod-revvar-4.0/README
+index 279a422..33f1f7b 100644
+--- a/libvmod-revvar-4.0/README
++++ b/libvmod-revvar-4.0/README
+@@ -3,35 +3,32 @@ association list with support for strings, ints and reals.
+ 
+ There are methods to get and set each type.
+ 
+-Global variables have a lifespan that extends across requests and
+-VCLs, for as long as the vmod is loaded. Non-globals are local to a
+-single request.
+-
+ Prototype, most should be self-explaining:
+ 
+-Function VOID set(STRING, STRING)
+-Function STRING get(STRING)
++Function VOID init_var_count(INT)
+ 
+-Function VOID global_set(STRING, STRING)
+-Function STRING global_get(STRING)
++Function VOID set_int(BOOL, INT, INT)
++Function INT get_int(BOOL, INT)
+ 
+-Function VOID set_int(STRING, INT)
+-Function INT get_int(STRING)
++Function VOID set_string(BOOL, INT, STRING)
++Function STRING get_string(BOOL, INT)
+ 
+-Function VOID set_string(STRING, STRING)
+-Function STRING get_string(STRING)
++Function VOID set_real(BOOL, INT, REAL)
++Function REAL get_real(BOOL, INT)
+ 
+-Function VOID set_real(STRING, REAL)
+-Function REAL get_real(STRING)
++Function VOID set_duration(BOOL, INT, DURATION)
++Function DURATION get_duration(BOOL, INT)
+ 
+-Function VOID set_duration(STRING, DURATION)
+-Function DURATION get_duration(STRING)
++Function VOID clear(BOOL)
+ 
+-Function VOID clear()
++init_var_count() sets the number of variables we are going to define.
++clear() clears the whole variable space.
+ 
+-clear() clears the whole non-global variable space.
++The variables are referenced by their index, between 0 and the number
++passed to init_var_count().
+ 
++The first BOOL parameter to each function determines whether the
++variable is read from the 'vcl_receive' (user) scope (TRUE) or from
++the 'vcl_backend_response' (backend) scope (FALSE).
+ 
+-VARNISH 4.0 LIMITATION: This VMOD is currently NOT available in the
+-following Varnish 4.0 VCL methods: vcl_backend_fetch,
+-vcl_backend_response and vcl_backend_error. See github issue #5
++The first INT parameter is the variable index.
+\ No newline at end of file
+-- 
+2.7.4
+

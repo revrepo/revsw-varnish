@@ -1,0 +1,45 @@
+From a24cf3e1435502d043d1c1b4ca10b3ac862cd3f8 Mon Sep 17 00:00:00 2001
+From: Victor Gartvich <victor@revsw.com>
+Date: Tue, 27 Sep 2016 21:44:46 +0000
+Subject: [PATCH 52/63] [ci skip] Fixed the reload script to discard old VCL
+ configurations
+
+---
+ varnish-4.0.3/debian/reload-vcl | 21 +++++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
+diff --git a/varnish-4.0.3/debian/reload-vcl b/varnish-4.0.3/debian/reload-vcl
+index 8eef08d..7299254 100644
+--- a/varnish-4.0.3/debian/reload-vcl
++++ b/varnish-4.0.3/debian/reload-vcl
+@@ -168,6 +168,27 @@ then
+     grep -v '^$' >&2 $logfile
+ fi
+ 
++
++KEEP_AVAILABLE_VCL=1
++
++# echo "Keeping last $KEEP_AVAILABLE_VCL available configs"
++available=`$varnishadm vcl.list | grep "^available"`
++available_count=`echo "$available" | wc -l`
++# echo "Found $available_count available configs"
++discard_count=$((available_count - KEEP_AVAILABLE_VCL))
++#echo "Discarding $discard_count configs"
++if [ $discard_count -gt 0 ]; then
++        echo "$available" | head -n $discard_count | awk '{ print $3 }' | while read discard; do
++                if ! $varnishadm vcl.discard $discard > /dev/null; then
++                        #echo "$varnishadm vcl.discard $discard succeded"
++                # else
++                        echo "$varnishadmvcl.discard $discard failed"
++                fi
++        done
++fi
++
++# $varnishadm vcl.list
++
+ # Cleanup
+ rm -f $logfile
+ exit $exitstatus
+-- 
+2.7.4
+

@@ -1,0 +1,46 @@
+From 0e30a491d02a09723a6c0a8b70a6e33757524f9e Mon Sep 17 00:00:00 2001
+From: vimal gupta <vimal.gupta@techvedika.com>
+Date: Fri, 19 Dec 2014 14:38:07 +0530
+Subject: [PATCH 13/63] Added vmod timer compilation rule
+
+---
+ debian/rules | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/debian/rules b/debian/rules
+index 1b5aee9..0060708 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -10,6 +10,7 @@ override_dh_auto_configure:
+ 	cd libvmod-cookie-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+ 	cd libvmod-var-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+ 	cd libvmod-header-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
++	cd libvmod-timers-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+ 
+ override_dh_gencontrol:
+ 	echo "Varnish:ABI=$(VMOD_ABI)" >> debian/substvars
+@@ -25,18 +26,21 @@ override_dh_auto_build:
+ 	$(MAKE) -C libvmod-cookie-4.0
+ 	$(MAKE) -C libvmod-var-4.0
+ 	$(MAKE) -C libvmod-header-4.0
++	$(MAKE) -C libvmod-timers-4.0
+ 
+ override_dh_auto_install:
+ 	$(MAKE) -C libvmod-chromelogger-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+ 	$(MAKE) -C libvmod-cookie-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+ 	$(MAKE) -C libvmod-var-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+ 	$(MAKE) -C libvmod-header-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
++	$(MAKE) -C libvmod-timers-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+ 
+ override_dh_auto_clean:
+ 	$(MAKE) -C libvmod-chromelogger-4.0 distclean || true
+ 	$(MAKE) -C libvmod-cookie-4.0 distclean || true
+ 	$(MAKE) -C libvmod-var-4.0 distclean || true
+ 	$(MAKE) -C libvmod-header-4.0 distclean || true
++	$(MAKE) -C libvmod-timers-4.0 distclean || true
+ 
+ override_dh_strip:
+ 	dh_strip --dbg-package=revsw-varnish-modules-dbg
+-- 
+2.7.4
+

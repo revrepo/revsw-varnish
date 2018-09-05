@@ -1,0 +1,197 @@
+From b389f296ee8517e8d23879e8cd299c1943981764 Mon Sep 17 00:00:00 2001
+From: Victor Gartvich <victor@revsw.com>
+Date: Fri, 1 Dec 2017 21:41:52 +0000
+Subject: [PATCH 61/63] Add default /etc/varnish/revsw.vcl file; add support
+ for custom cache file size configuration
+
+---
+ varnish-4.0.3/debian/revsw-varnish4.default | 108 +++++++---------------------
+ varnish-4.0.3/debian/rules                  |   1 +
+ varnish-4.0.3/etc/revsw.vcl                 |  40 +++++++++++
+ 3 files changed, 65 insertions(+), 84 deletions(-)
+ create mode 100644 varnish-4.0.3/etc/revsw.vcl
+
+diff --git a/varnish-4.0.3/debian/revsw-varnish4.default b/varnish-4.0.3/debian/revsw-varnish4.default
+index 68b7da4..77be007 100644
+--- a/varnish-4.0.3/debian/revsw-varnish4.default
++++ b/varnish-4.0.3/debian/revsw-varnish4.default
+@@ -20,94 +20,34 @@ MEMLOCK=82000
+ 
+ # Default varnish instance name is the local nodename.  Can be overridden with
+ # the -n switch, to have more instances on a single server.
+-# You may need to uncomment this variable for alternatives 1 and 3 below.
+-# INSTANCE=$(uname -n)
++INSTANCE=$(uname -n)
+ 
+-# This file contains 4 alternatives, please use only one.
+-
+-## Alternative 1, Minimal configuration, no VCL
+-#
+-# Listen on port 6081, administration on localhost:6082, and forward to
+-# content server on localhost:8080.  Use a 1GB fixed-size cache file.
+-#
+-# This example uses the INSTANCE variable above, which you need to uncomment.
+-#
+-# DAEMON_OPTS="-a :6081 \
+-#              -T localhost:6082 \
+-# 	     -b localhost:8080 \
+-# 	     -u varnish -g varnish \
+-#            -S /etc/varnish/secret \
+-# 	     -s file,/var/lib/varnish/$INSTANCE/varnish_storage.bin,1G"
++# Default cache file size is 1GB
++CACHE_FILE_SIZE=1G
+ 
++# If file /etc/varnish/default_include_file.sh exists then include it. The
++# file can be used to configure custom CACHE_FILE_SIZE value.
++if [ -f /etc/varnish/default_include_file.sh ]; then
++        . /etc/varnish/default_include_file.sh
++fi
+ 
+ ## Alternative 2, Configuration with VCL
+ #
+-# Listen on port 6081, administration on localhost:6082, and forward to
+-# one content server selected by the vcl file, based on the request.
+-#
+-DAEMON_OPTS="-a :6081 \
+-             -T localhost:6082 \
+-             -f /etc/varnish/default.vcl \
+-             -S /etc/varnish/secret \
+-             -s malloc,256m"
+-
+-
+-## Alternative 3, Advanced configuration
+-#
+-# This example uses the INSTANCE variable above, which you need to uncomment.
+-#
+-# See varnishd(1) for more information.
+-#
+-# # Main configuration file. You probably want to change it :)
+-# VARNISH_VCL_CONF=/etc/varnish/default.vcl
+-#
+-# # Default address and port to bind to
+-# # Blank address means all IPv4 and IPv6 interfaces, otherwise specify
+-# # a host name, an IPv4 dotted quad, or an IPv6 address in brackets.
+-# VARNISH_LISTEN_ADDRESS=
+-# VARNISH_LISTEN_PORT=6081
++# Listen on port 6081, administration on 127.0.0.1:6082, and forward to
++# one content server selected by the vcl file, based on the request.  Use a 1GB
++# fixed-size cache file.
+ #
+-# # Telnet admin interface listen address and port
+-# VARNISH_ADMIN_LISTEN_ADDRESS=127.0.0.1
+-# VARNISH_ADMIN_LISTEN_PORT=6082
++# We must disable XML check to allow ESI to work with JSON, see:
++# http://stackoverflow.com/questions/25304475/esi-includes-in-json-response
+ #
+-# # The minimum number of worker threads to start
+-# VARNISH_MIN_THREADS=1
+-#
+-# # The Maximum number of worker threads to start
+-# VARNISH_MAX_THREADS=1000
+-#
+-# # Idle timeout for worker threads
+-# VARNISH_THREAD_TIMEOUT=120
+-#
+-# # Cache file location
+-# VARNISH_STORAGE_FILE=/var/lib/varnish/$INSTANCE/varnish_storage.bin
+-#
+-# # Cache file size: in bytes, optionally using k / M / G / T suffix,
+-# # or in percentage of available disk space using the % suffix.
+-# VARNISH_STORAGE_SIZE=1G
+-#
+-# # File containing administration secret
+-# VARNISH_SECRET_FILE=/etc/varnish/secret
+-# 
+-# # Backend storage specification
+-# VARNISH_STORAGE="file,${VARNISH_STORAGE_FILE},${VARNISH_STORAGE_SIZE}"
+-#
+-# # Default TTL used when the backend does not specify one
+-# VARNISH_TTL=120
+-#
+-# # DAEMON_OPTS is used by the init script.  If you add or remove options, make
+-# # sure you update this section, too.
+-# DAEMON_OPTS="-a ${VARNISH_LISTEN_ADDRESS}:${VARNISH_LISTEN_PORT} \
+-#              -f ${VARNISH_VCL_CONF} \
+-#              -T ${VARNISH_ADMIN_LISTEN_ADDRESS}:${VARNISH_ADMIN_LISTEN_PORT} \
+-#              -t ${VARNISH_TTL} \
+-#              -w ${VARNISH_MIN_THREADS},${VARNISH_MAX_THREADS},${VARNISH_THREAD_TIMEOUT} \
+-# 	       -S ${VARNISH_SECRET_FILE} \
+-#              -s ${VARNISH_STORAGE}"
+-#
+-
+-
+-## Alternative 4, Do It Yourself
+-#
+-# DAEMON_OPTS=""
++DAEMON_OPTS="-a 127.0.0.1:8080,127.0.0.1:8443 \
++             -T 127.0.0.1:6082 \
++             -f /etc/varnish/revsw.vcl \
++             -S /etc/varnish/secret \
++             -s file,/var/lib/varnish/$INSTANCE/varnish_storage.bin,$CACHE_FILE_SIZE \
++             -p timeout_idle=600 \
++             -p thread_pool_min=200 \
++             -p thread_pool_max=4000 \
++             -p thread_pool_add_delay=1 \
++             -p timeout_linger=1 \
++             -p feature=+esi_disable_xml_check"
+diff --git a/varnish-4.0.3/debian/rules b/varnish-4.0.3/debian/rules
+index 0a1ade6..cac0a5c 100755
+--- a/varnish-4.0.3/debian/rules
++++ b/varnish-4.0.3/debian/rules
+@@ -37,6 +37,7 @@ override_dh_auto_install:
+ 	dh_auto_install -a
+ 	install -d debian/tmp/etc/varnish
+ 	install -T -m 0644 etc/example.vcl debian/tmp/etc/varnish/default.vcl
++	install -T -m 0644 etc/revsw.vcl debian/tmp/etc/varnish/revsw.vcl
+ 	@ # Remove .la files
+ 	@ # (See http://wiki.debian.org/ReleaseGoals/LAFileRemoval)
+ 	find $(CURDIR)/debian/ -name \*.la -delete
+diff --git a/varnish-4.0.3/etc/revsw.vcl b/varnish-4.0.3/etc/revsw.vcl
+new file mode 100644
+index 0000000..eefdd9c
+--- /dev/null
++++ b/varnish-4.0.3/etc/revsw.vcl
+@@ -0,0 +1,40 @@
++#
++# This is an example VCL file for Varnish.
++#
++# It does not do anything by default, delegating control to the
++# builtin VCL. The builtin VCL is called when there is no explicit
++# return statement.
++#
++# See the VCL chapters in the Users Guide at https://www.varnish-cache.org/docs/
++# and http://varnish-cache.org/trac/wiki/VCLExamples for more examples.
++
++# Marker to tell the VCL compiler that this VCL has been adapted to the
++# new 4.0 format.
++vcl 4.0;
++
++# Default backend definition. Set this to point to your content server.
++backend default {
++    .host = "127.0.0.1";
++    .port = "8080";
++}
++
++sub vcl_recv {
++    # Happens before we check if we have this in cache already.
++    #
++    # Typically you clean up the request here, removing cookies you don't need,
++    # rewriting the request, etc.
++}
++
++sub vcl_backend_response {
++    # Happens after we have read the response headers from the backend.
++    #
++    # Here you clean the response headers, removing silly Set-Cookie headers
++    # and other mistakes your backend does.
++}
++
++sub vcl_deliver {
++    # Happens when we have all the pieces we need, and are about to send the
++    # response to the client.
++    #
++    # You can do accounting or modifying the final object here.
++}
+-- 
+2.7.4
+

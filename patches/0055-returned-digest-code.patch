@@ -1,0 +1,1653 @@
+From db64b34436666d2f17145c4c2c0e3d8dfab1c952 Mon Sep 17 00:00:00 2001
+From: djkobraz <djkobraz@gmail.com>
+Date: Tue, 22 Aug 2017 02:48:32 +0300
+Subject: [PATCH 55/63] returned digest code
+
+---
+ varnish4-vmods/libvmod-digest-4.0/.gitignore       |  33 ++
+ varnish4-vmods/libvmod-digest-4.0/.travis.yml      |  17 +
+ varnish4-vmods/libvmod-digest-4.0/CHANGES.rst      |  28 ++
+ varnish4-vmods/libvmod-digest-4.0/LICENSE          |  20 +
+ varnish4-vmods/libvmod-digest-4.0/Makefile.am      |  27 ++
+ varnish4-vmods/libvmod-digest-4.0/README.rst       | 297 ++++++++++++
+ varnish4-vmods/libvmod-digest-4.0/autogen.sh       |  53 +++
+ varnish4-vmods/libvmod-digest-4.0/configure.ac     |  78 ++++
+ varnish4-vmods/libvmod-digest-4.0/src/Makefile.am  |  38 ++
+ .../libvmod-digest-4.0/src/tests/test01.vtc        |  59 +++
+ .../libvmod-digest-4.0/src/tests/test_hash.vtc     | 254 +++++++++++
+ .../libvmod-digest-4.0/src/tests/test_hex.vtc      |  48 ++
+ .../src/tests/test_nullstring.vtc                  |  30 ++
+ .../libvmod-digest-4.0/src/vmod_digest.c           | 498 +++++++++++++++++++++
+ .../libvmod-digest-4.0/src/vmod_digest.vcc         |  42 ++
+ 15 files changed, 1522 insertions(+)
+ create mode 100644 varnish4-vmods/libvmod-digest-4.0/.gitignore
+ create mode 100644 varnish4-vmods/libvmod-digest-4.0/.travis.yml
+ create mode 100644 varnish4-vmods/libvmod-digest-4.0/CHANGES.rst
+ create mode 100644 varnish4-vmods/libvmod-digest-4.0/LICENSE
+ create mode 100644 varnish4-vmods/libvmod-digest-4.0/Makefile.am
+ create mode 100644 varnish4-vmods/libvmod-digest-4.0/README.rst
+ create mode 100755 varnish4-vmods/libvmod-digest-4.0/autogen.sh
+ create mode 100644 varnish4-vmods/libvmod-digest-4.0/configure.ac
+ create mode 100644 varnish4-vmods/libvmod-digest-4.0/src/Makefile.am
+ create mode 100644 varnish4-vmods/libvmod-digest-4.0/src/tests/test01.vtc
+ create mode 100644 varnish4-vmods/libvmod-digest-4.0/src/tests/test_hash.vtc
+ create mode 100644 varnish4-vmods/libvmod-digest-4.0/src/tests/test_hex.vtc
+ create mode 100644 varnish4-vmods/libvmod-digest-4.0/src/tests/test_nullstring.vtc
+ create mode 100644 varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.c
+ create mode 100644 varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.vcc
+
+diff --git a/varnish4-vmods/libvmod-digest-4.0/.gitignore b/varnish4-vmods/libvmod-digest-4.0/.gitignore
+new file mode 100644
+index 0000000..a17df2f
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0/.gitignore
+@@ -0,0 +1,33 @@
++Makefile
++Makefile.in
++.deps/
++.libs/
++*.o
++*.lo
++*.la
++*~
++
++/aclocal.m4
++/autom4te.cache/
++/compile
++/config.guess
++/config.h
++/config.h.in
++/config.log
++/config.status
++/config.sub
++/configure
++/depcomp
++/install-sh
++/libtool
++/ltmain.sh
++/missing
++/stamp-h1
++/m4/
++
++/src/vcc_if.c
++/src/vcc_if.h
++/src/vmod_*rst
++/vmod_digest.3
++
++libvmod-digest-*.gz
+diff --git a/varnish4-vmods/libvmod-digest-4.0/.travis.yml b/varnish4-vmods/libvmod-digest-4.0/.travis.yml
+new file mode 100644
+index 0000000..db7ff4c
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0/.travis.yml
+@@ -0,0 +1,17 @@
++language: c
++compiler:
++  - clang
++  - gcc
++before_install:
++  - sudo apt-get update
++  - sudo apt-get install apt-transport-https libmhash-dev python-docutils
++  - curl -s https://repo.varnish-cache.org/ubuntu/GPG-key.txt |
++    sudo apt-key add -
++  - echo "deb https://repo.varnish-cache.org/ubuntu/ precise varnish-4.1" |
++    sudo tee /etc/apt/sources.list.d/varnish-cache.list
++  - sudo apt-get update
++  - sudo apt-get install varnish libvarnishapi-dev
++  - ./autogen.sh
++script:
++  - ./configure && make CFLAGS="-Wall -Wextra" &&
++    make check VERBOSE=1
+diff --git a/varnish4-vmods/libvmod-digest-4.0/CHANGES.rst b/varnish4-vmods/libvmod-digest-4.0/CHANGES.rst
+new file mode 100644
+index 0000000..ac2167d
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0/CHANGES.rst
+@@ -0,0 +1,28 @@
++This is a running log of changes to libvmod-digest.
++
++libvmod-digest 1.0.1 (2016-03-15)
++---------------------------------
++
++Changes since 1.0.0:
++
++* Fix overread in base64_encode()
++* is_hex() stylistic cleanups.
++
++This release was tested with Varnish Cache 4.1.2.
++
++
++libvmod-digest 1.0.0 (2016-03-14)
++---------------------------------
++
++This is libvmod-digest, allowing use of libmhash (cryptographic functions)
++in Varnish VCL.
++
++Changes since last release:
++
++* Semantic versioning introduced.
++
++* Packaging files moved out of tree.
++
++This release was tested with Varnish Cache 4.1.2.
++
++List of changes was not kept for previous versions.
+diff --git a/varnish4-vmods/libvmod-digest-4.0/LICENSE b/varnish4-vmods/libvmod-digest-4.0/LICENSE
+new file mode 100644
+index 0000000..264d421
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0/LICENSE
+@@ -0,0 +1,20 @@
++Redistribution and use in source and binary forms, with or without
++modification, are permitted provided that the following conditions
++are met:
++1. Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++2. Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++
++THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
++ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ARE DISCLAIMED.  IN NO EVENT SHALL AUTHOR OR CONTRIBUTORS BE LIABLE
++FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
++LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
++OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
++SUCH DAMAGE.
+diff --git a/varnish4-vmods/libvmod-digest-4.0/Makefile.am b/varnish4-vmods/libvmod-digest-4.0/Makefile.am
+new file mode 100644
+index 0000000..d088e97
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0/Makefile.am
+@@ -0,0 +1,27 @@
++ACLOCAL_AMFLAGS = -I m4 -I ${LIBVARNISHAPI_DATAROOTDIR}/aclocal
++
++SUBDIRS = src
++
++DISTCHECK_CONFIGURE_FLAGS = \
++	VMOD_DIR='$${libdir}/varnish/vmods'
++
++EXTRA_DIST = README.rst LICENSE CHANGES.rst
++
++doc_DATA = README.rst LICENSE
++
++dist_man_MANS = vmod_digest.3
++MAINTAINERCLEANFILES = $(dist_man_MANS)
++
++vmod_digest.3: README.rst
++
++%.1 %.2 %.3 %.4 %.5 %.6 %.7 %.8 %.9:
++if HAVE_RST2MAN
++	${RST2MAN} $< $@
++else
++	@echo "========================================"
++	@echo "You need rst2man installed to make dist"
++	@echo "========================================"
++	@false
++endif
++
++
+diff --git a/varnish4-vmods/libvmod-digest-4.0/README.rst b/varnish4-vmods/libvmod-digest-4.0/README.rst
+new file mode 100644
+index 0000000..e56a68e
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0/README.rst
+@@ -0,0 +1,297 @@
++===========
++vmod_digest
++===========
++
++---------------------
++Varnish Digest Module
++---------------------
++
++:Manual section: 3
++:Author: Kristian Lyngstøl
++:Date: 2016-03-16
++:Version: 1.0.1
++
++SYNOPSIS
++========
++
++::
++
++        import digest;
++        
++        digest.hmac_md5(<key>,<message>);
++        digest.hmac_sha1(<key>, <message>);
++        digest.hmac_sha256(<key>, <message));
++
++        digest.base64(<string>);
++        digest.base64url(<string>);
++        digest.base64url_nopad(<string>);
++        digest.base64_hex(<string>);
++        digest.base64url_hex(<string>);
++        digest.base64url_nopad_hex(<string>);
++        digest.base64_decode(<string>);
++        digest.base64url_decode(<string>);
++        digest.base64url_nopad_decode(<string>);
++
++        digest.version()
++
++        digest.hash_sha1(<string>);
++        digest.hash_sha224(<string>);
++        digest.hash_sha256(<string>);
++        digest.hash_sha384(<string>);
++        digest.hash_sha512(<string>);
++        digest.hash_gost(<string>);
++        digest.hash_md2(<string>);
++        digest.hash_md4(<string>);
++        digest.hash_md5(<string>);
++        digest.hash_crc32(<string>);
++        digest.hash_crc32b(<string>);
++        digest.hash_adler32(<string>);
++        digest.hash_haval128(<string>);
++        digest.hash_haval160(<string>);
++        digest.hash_haval192(<string>);
++        digest.hash_haval224(<string>);
++        digest.hash_haval256(<string>);
++        digest.hash_ripemd128(<string>);
++        digest.hash_ripemd160(<string>);
++        digest.hash_ripemd256(<string>);
++        digest.hash_ripemd320(<string>);
++        digest.hash_tiger(<string>);
++        digest.hash_tiger128(<string>);
++        digest.hash_tiger160(<string>);
++        digest.hash_snefru128(<string>);
++        digest.hash_snefru256(<string>);
++
++DESCRIPTION
++===========
++
++Varnish Module (vmod) for computing HMAC, message digests and working with
++base64.
++
++All HMAC- and hash-functionality is provided by libmhash, while base64 is
++implemented locally.
++
++FUNCTIONS
++=========
++
++Example VCL::
++
++	backend foo { ... };
++
++	import digest;
++
++	sub vcl_recv {
++		if (digest.hmac_sha256("key",req.http.x-data) != req.http.x-data-sig)
++		{
++			return (synth(401, "Naughty user!"));
++		}
++	}
++
++
++hmac_(hash)
++-----------
++
++Prototype
++        ::
++
++	        digest.hmac_md5(<key>,<message>);
++	        digest.hmac_sha1(<key>, <message>);
++	        digest.hmac_sha256(<key>, <message));
++Returns
++        String. Hex-encoded prepended with 0x.
++Description
++        All the various hmac-functions work the same, but use a different
++	hash mechanism.
++Example
++        ::
++
++                set resp.http.x-data-sig = 
++                        digest.hmac_sha256("secretkey",resp.http.x-data);
++
++base64, base64url, base64url_nopad
++----------------------------------
++
++Prototype
++        ::
++
++                digest.base64(<string>);
++                digest.base64url(<string>);
++                digest.base64url_nopad(<string>);
++Returns
++        String
++Description
++        Returns the base64-encoded version of the input-string. The
++        base64url-variant uses base64 url-encoding (+/ replaced by -_) and
++        the base64url_nopad does the same, but avoids adding padding. The
++        latter is more commonly used, though an (allowed) exception to the
++        RFC4648.
++Example
++        ::
++
++                set resp.http.x-data-sig = 
++                        digest.base64({"content with
++                        newline in it"});
++
++base64_hex, base64url_hex, base64url_nopad_hex
++-----------------------------------------------
++
++Prototype
++        ::
++
++                digest.base64_hex(<string>);
++                digest.base64url_hex(<string>);
++                digest.base64url_nopad_hex(<string>);
++Returns
++        String
++Description
++        Returns the base64-encoded version of the hex encoded input-string. The
++        input-string can start with an optional 0x. Input is hex-decoded into binary
++        and the encoding is identical to base64, base64url, and base64url_nopad.
++Example
++        ::
++
++                set resp.http.x-data-sig =
++                        digest.base64_hex("0xdd26bfddf122c1055d4c");
++
++hash_(algorithm)
++----------------
++
++Prototype
++        ::
++        
++                digest.hash_sha1(<string>);
++                digest.hash_sha224(<string>);
++                digest.hash_sha256(<string>);
++                digest.hash_sha384(<string>);
++                digest.hash_sha512(<string>);
++                digest.hash_gost(<string>);
++                digest.hash_md2(<string>);
++                digest.hash_md4(<string>);
++                digest.hash_md5(<string>);
++                digest.hash_crc32(<string>);
++                digest.hash_crc32b(<string>);
++                digest.hash_adler32(<string>);
++                digest.hash_haval128(<string>);
++                digest.hash_haval160(<string>);
++                digest.hash_haval192(<string>);
++                digest.hash_haval224(<string>);
++                digest.hash_haval256(<string>);
++                digest.hash_ripemd128(<string>);
++                digest.hash_ripemd160(<string>);
++                digest.hash_ripemd256(<string>);
++                digest.hash_ripemd320(<string>);
++                digest.hash_tiger(<string>);
++                digest.hash_tiger128(<string>);
++                digest.hash_tiger160(<string>);
++                digest.hash_snefru128(<string>);
++                digest.hash_snefru256(<string>);
++Returns
++        String
++Description
++        Computes the digest/hash of the supplied, using the specified hash
++        algorithm. If in doubt as to which to pick, use SHA256. For
++        detailed discussions, see The Internet.
++Example
++        ::
++                
++                set resp.http.x-data-md5 = 
++                        digest.hash_md5(resp.http.x-data);
++
++base64_decode, base64url_decode, base64url_nopad_decode
++-------------------------------------------------------
++
++Prototype
++        ::
++        
++                digest.base64_decode(<string>);
++                digest.base64url_decode(<string>);
++                digest.base64url_nopad_decode(<string>);
++Returns
++        String
++Description
++        Decodes the bas64 and base64url-encoded strings. All functions
++        treat padding the same, meaning base64url_decode and
++        base64url_nopad_decode are identical, but available for consistency
++        and practicality.
++Example
++        ::
++                synthetic(digest.base64_decode(req.http.x-parrot));
++
++version
++-------
++
++Prototype
++        ::
++
++                digest.version()
++Returns
++        string
++Description
++        Returns the string constant version-number of the digest vmod.
++Example
++        ::
++                
++                set resp.http.X-digest-version = digest.version();
++
++
++INSTALLATION
++============
++
++The source tree is based on autotools to configure the building, and
++does also have the necessary bits in place to do functional unit tests
++using the ``varnishtest`` tool.
++
++Building requires the Varnish header files and uses pkg-config to find
++the necessary paths.
++
++Usage::
++
++ ./autogen.sh
++ ./configure
++
++If you have installed Varnish to a non-standard directory, call
++``autogen.sh`` and ``configure`` with ``PKG_CONFIG_PATH`` pointing to
++the appropriate path. For example, when varnishd configure was called
++with ``--prefix=$PREFIX``, use
++
++ PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig
++ export PKG_CONFIG_PATH
++
++Make targets:
++
++* make - builds the vmod.
++* make install - installs your vmod.
++* make check - runs the unit tests in ``src/tests/*.vtc``
++* make distcheck - run check and prepare a tarball of the vmod.
++
++
++AUTHOR
++======
++
++Original author: Kristian Lyngstøl <kristian@varnish-software.com>.
++
++This Vmod was written for Media Norge, Schibsted and others.
++
++The bulk of the functionality is acquired through libmhash.
++
++
++BUGS
++====
++
++No bugs at all!
++
++If the key is NULL for hmac-functions, the function will fail and return
++NULL itself, and do no hmac-computation at all. This should be used as an
++indication of some greater flaw in your software/VCL. (I.e.: Your key
++should be under your control, not user-supplied without verification).
++
++The `base64url_nopad_decode()` and `base64url_decode()` functions do not
++differ much. The exception is that nopad_decode() does not know about
++padding at all, and might get confused if the input actually is padded.
++
++SEE ALSO
++========
++
++* libmhash
++* varnishd(1)
++* vcl(7)
++* https://github.com/varnish/libvmod-digest
+diff --git a/varnish4-vmods/libvmod-digest-4.0/autogen.sh b/varnish4-vmods/libvmod-digest-4.0/autogen.sh
+new file mode 100755
+index 0000000..55f7894
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0/autogen.sh
+@@ -0,0 +1,53 @@
++#!/bin/sh
++
++warn() {
++	echo "WARNING: $@" 1>&2
++}
++
++case `uname -s` in
++Darwin)
++	LIBTOOLIZE=glibtoolize
++	;;
++FreeBSD)
++	LIBTOOLIZE=libtoolize
++	;;
++Linux)
++	LIBTOOLIZE=libtoolize
++	;;
++SunOS)
++	LIBTOOLIZE=libtoolize
++	;;
++*)
++	warn "unrecognized platform:" `uname -s`
++	LIBTOOLIZE=libtoolize
++esac
++
++automake_version=`automake --version | tr ' ' '\n' | egrep '^[0-9]\.[0-9a-z.-]+'`
++if [ -z "$automake_version" ] ; then
++	warn "unable to determine automake version"
++else
++	case $automake_version in
++		0.*|1.[0-8]|1.[0-8][.-]*)
++			warn "automake ($automake_version) detected; 1.9 or newer recommended"
++			;;
++		*)
++			;;
++	esac
++fi
++
++# check for varnishapi.m4 in custom paths
++dataroot=$(pkg-config --variable=datarootdir varnishapi 2>/dev/null)
++if [ -z "$dataroot" ] ; then
++	cat >&2 <<'EOF'
++Package varnishapi was not found in the pkg-config search path.
++Perhaps you should add the directory containing `varnishapi.pc'
++to the PKG_CONFIG_PATH environment variable
++EOF
++	exit 1
++fi
++set -ex
++aclocal -I m4 -I ${dataroot}/aclocal
++$LIBTOOLIZE --copy --force
++autoheader
++automake --add-missing --copy --foreign
++autoconf
+diff --git a/varnish4-vmods/libvmod-digest-4.0/configure.ac b/varnish4-vmods/libvmod-digest-4.0/configure.ac
+new file mode 100644
+index 0000000..b5d169f
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0/configure.ac
+@@ -0,0 +1,78 @@
++AC_PREREQ(2.59)
++AC_COPYRIGHT([Copyright (c) 2011-2016 Varnish Software])
++AC_INIT([libvmod-digest], [1.0.1])
++AC_CONFIG_MACRO_DIR([m4])
++m4_ifndef([VARNISH_VMOD_INCLUDES], AC_MSG_ERROR([Need varnish.m4]))
++AC_CONFIG_SRCDIR(src/vmod_digest.vcc)
++AM_CONFIG_HEADER(config.h)
++
++AC_CANONICAL_SYSTEM
++AC_LANG(C)
++
++AM_INIT_AUTOMAKE([foreign])
++
++AC_GNU_SOURCE
++AC_PROG_CC
++AC_PROG_CC_STDC
++if test "x$ac_cv_prog_cc_c99" = xno; then
++	AC_MSG_ERROR([Could not find a C99 compatible compiler])
++fi
++AC_PROG_CPP
++
++AC_PROG_INSTALL
++AC_PROG_LIBTOOL
++AC_PROG_MAKE_SET
++
++AC_CHECK_LIB(mhash, mhash_count, [AC_DEFINE([HAVE_MHASH],[1],[Define we have mhash])],
++		[AC_MSG_ERROR([libvmod-digest requires libmhash.])])
++# Check for rst utilities
++AC_CHECK_PROGS(RST2MAN, [rst2man rst2man.py], "no")
++if test "x$RST2MAN" = "xno"; then
++	AC_MSG_WARN([rst2man not found - not building man pages])
++fi
++AM_CONDITIONAL(HAVE_RST2MAN, [test "x$RST2MAN" != "xno"])
++
++# Checks for header files.
++AC_HEADER_STDC
++AC_CHECK_HEADERS([sys/stdlib.h])
++
++# backwards compat with older pkg-config
++# - pull in AC_DEFUN from pkg.m4
++m4_ifndef([PKG_CHECK_VAR], [
++# PKG_CHECK_VAR(VARIABLE, MODULE, CONFIG-VARIABLE,
++# [ACTION-IF-FOUND], [ACTION-IF-NOT-FOUND])
++# -------------------------------------------
++# Retrieves the value of the pkg-config variable for the given module.
++AC_DEFUN([PKG_CHECK_VAR],
++[AC_REQUIRE([PKG_PROG_PKG_CONFIG])dnl
++AC_ARG_VAR([$1], [value of $3 for $2, overriding pkg-config])dnl
++
++_PKG_CONFIG([$1], [variable="][$3]["], [$2])
++AS_VAR_COPY([$1], [pkg_cv_][$1])
++
++AS_VAR_IF([$1], [""], [$5], [$4])dnl
++])# PKG_CHECK_VAR
++])
++
++PKG_CHECK_MODULES([libvarnishapi], [varnishapi])
++PKG_CHECK_VAR([LIBVARNISHAPI_DATAROOTDIR], [varnishapi], [datarootdir])
++PKG_CHECK_VAR([LIBVARNISHAPI_BINDIR], [varnishapi], [bindir])
++PKG_CHECK_VAR([LIBVARNISHAPI_SBINDIR], [varnishapi], [sbindir])
++AC_SUBST([LIBVARNISHAPI_DATAROOTDIR])
++
++# Varnish include files tree
++VARNISH_VMOD_INCLUDES
++VARNISH_VMOD_DIR
++VARNISH_VMODTOOL
++
++AC_PATH_PROG([VARNISHTEST], [varnishtest], [],
++    [$LIBVARNISHAPI_BINDIR:$LIBVARNISHAPI_SBINDIR:$PATH])
++AC_PATH_PROG([VARNISHD], [varnishd], [],
++    [$LIBVARNISHAPI_SBINDIR:$LIBVARNISHAPI_BINDIR:$PATH])
++
++
++AC_CONFIG_FILES([
++	Makefile
++	src/Makefile
++])
++AC_OUTPUT
+diff --git a/varnish4-vmods/libvmod-digest-4.0/src/Makefile.am b/varnish4-vmods/libvmod-digest-4.0/src/Makefile.am
+new file mode 100644
+index 0000000..7098913
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0/src/Makefile.am
+@@ -0,0 +1,38 @@
++AM_CPPFLAGS = @VMOD_INCLUDES@ -Wall -Wextra -Werror
++
++vmoddir = @VMOD_DIR@
++vmod_LTLIBRARIES = libvmod_digest.la
++
++libvmod_digest_la_LDFLAGS = -module -export-dynamic -avoid-version -shared -lmhash
++
++libvmod_digest_la_SOURCES = \
++	vmod_digest.c
++
++nodist_libvmod_digest_la_SOURCES = \
++	vcc_if.c \
++	vcc_if.h
++
++vmod_digest.lo: vcc_if.c vcc_if.h
++
++vcc_if.c: vcc_if.h
++
++vcc_if.h: @VMODTOOL@ $(top_srcdir)/src/vmod_digest.vcc
++	@VMODTOOL@ $(top_srcdir)/src/vmod_digest.vcc
++
++VMOD_TESTS = $(top_srcdir)/src/tests/*.vtc
++.PHONY: $(VMOD_TESTS)
++
++$(top_srcdir)/src/tests/*.vtc: libvmod_digest.la
++	@VARNISHTEST@ -Dvarnishd=@VARNISHD@ -Dvmod_topbuild=$(abs_top_builddir) $@
++
++check: $(VMOD_TESTS)
++
++EXTRA_DIST = \
++	vmod_digest.vcc \
++	$(VMOD_TESTS)
++
++CLEANFILES = \
++	$(builddir)/vcc_if.c \
++	$(builddir)/vcc_if.h \
++	$(builddir)/vmod_digest.man.rst \
++	$(builddir)/vmod_digest.rst
+diff --git a/varnish4-vmods/libvmod-digest-4.0/src/tests/test01.vtc b/varnish4-vmods/libvmod-digest-4.0/src/tests/test01.vtc
+new file mode 100644
+index 0000000..b36ceb8
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0/src/tests/test01.vtc
+@@ -0,0 +1,59 @@
++varnishtest "Test digest vmod"
++
++# Test vectors borrowed from wikipedia (which is in turn borrowed from
++# rfc2104)
++
++server s1 {
++       rxreq
++       txresp
++} -start
++
++varnish v1 -vcl+backend {
++	import digest from "${vmod_topbuild}/src/.libs/libvmod_digest.so";
++
++	sub vcl_deliver {
++		set resp.http.sha256 = digest.hmac_sha256("key", "The quick brown fox jumps over the lazy dog");
++		set resp.http.sha1 = digest.hmac_sha1("key", "The quick brown fox jumps over the lazy dog");
++		set resp.http.md5 = digest.hmac_md5("key", "The quick brown fox jumps over the lazy dog");
++		set resp.http.sha256_b64 = digest.base64(digest.hmac_sha256("key", "The quick brown fox jumps over the lazy dog"));
++		set resp.http.sha1_b64 = digest.base64(digest.hmac_sha1("key", "The quick brown fox jumps over the lazy dog"));
++		set resp.http.md5_b64 = digest.base64(digest.hmac_md5("key", "The quick brown fox jumps over the lazy dog"));
++		set resp.http.sha256_clean = digest.base64_decode(resp.http.sha256_b64);
++		set resp.http.sha1_clean = digest.base64_decode(resp.http.sha1_b64);
++		set resp.http.md5_clean = digest.base64_decode(resp.http.md5_b64);
++		set resp.http.md5_b64url_nopad = digest.base64url_nopad("0x80070713463e7749b90c2dc24911e275");
++		set resp.http.clean_nopad = digest.base64url_decode("MHg4MDA3MDcxMzQ2M2U3NzQ5YjkwYzJkYzI0OTExZTI3NQ");
++		
++		# Used to test +/ vs -_. The decoded variant is russian (I
++		# think)
++		set resp.http.ruski = digest.base64_decode("zprOsc67z47PgiDOv8+Bzq/Pg86xz4TOtQ==");
++		set resp.http.ruski_b64 = "zprOsc67z47PgiDOv8+Bzq/Pg86xz4TOtQ==";
++		set resp.http.ruski_url = digest.base64url_nopad(resp.http.ruski);
++
++		set resp.http.hash_md5 = digest.hash_md5("foobar");
++	}
++} -start
++
++client c1 {
++	txreq -url "/"
++	rxresp
++	expect resp.http.sha256 == "0xf7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
++	expect resp.http.sha1 == "0xde7c9b85b8b78aa6bc8a7a36f70a90701c9db4d9"
++	expect resp.http.md5 == "0x80070713463e7749b90c2dc24911e275"
++
++	expect resp.http.sha256_b64 == "MHhmN2JjODNmNDMwNTM4NDI0YjEzMjk4ZTZhYTZmYjE0M2VmNGQ1OWExNDk0NjE3NTk5NzQ3OWRiYzJkMWEzY2Q4"
++	expect resp.http.sha1_b64 == "MHhkZTdjOWI4NWI4Yjc4YWE2YmM4YTdhMzZmNzBhOTA3MDFjOWRiNGQ5"
++	expect resp.http.md5_b64 == "MHg4MDA3MDcxMzQ2M2U3NzQ5YjkwYzJkYzI0OTExZTI3NQ=="
++	
++	expect resp.http.sha256_clean == "0xf7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
++	expect resp.http.sha1_clean == "0xde7c9b85b8b78aa6bc8a7a36f70a90701c9db4d9"
++	expect resp.http.md5_clean == "0x80070713463e7749b90c2dc24911e275"
++	
++	expect resp.http.clean_nopad == "0x80070713463e7749b90c2dc24911e275"
++	expect resp.http.md5_b64url_nopad == "MHg4MDA3MDcxMzQ2M2U3NzQ5YjkwYzJkYzI0OTExZTI3NQ"
++	expect resp.http.ruski_url == "zprOsc67z47PgiDOv8-Bzq_Pg86xz4TOtQ"
++
++	expect resp.http.hash_md5 == "3858f62230ac3c915f300c664312c63f"
++}
++
++client c1 -run
+diff --git a/varnish4-vmods/libvmod-digest-4.0/src/tests/test_hash.vtc b/varnish4-vmods/libvmod-digest-4.0/src/tests/test_hash.vtc
+new file mode 100644
+index 0000000..76ec265
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0/src/tests/test_hash.vtc
+@@ -0,0 +1,254 @@
++varnishtest "Test various hashes"
++
++# Test vectors borrowed from mhash2's test suite.
++# Had to split the test to avoid hitting maxhdr too easily.
++
++server s1 {
++       rxreq
++       txresp
++       rxreq
++       txresp
++       rxreq
++       txresp
++       rxreq
++       txresp
++} -start
++
++varnish v1 -vcl+backend {
++	import digest from "${vmod_topbuild}/src/.libs/libvmod_digest.so";
++
++	sub vcl_deliver {
++		if (req.url == "/1") {		
++			set resp.http.CRC32_1 = digest.hash_crc32("checksum");
++			set resp.http.CRC32B_2 = digest.hash_crc32b("checksum");
++			set resp.http.GOST_66 = digest.hash_gost("This is message, length=32 bytes");
++			set resp.http.GOST_67 = digest.hash_gost("Suppose the original message has length = 50 bytes");
++			set resp.http.HAVAL128_17 = digest.hash_haval128("");
++			set resp.http.HAVAL160_16 = digest.hash_haval160("a");
++			set resp.http.HAVAL192_15 = digest.hash_haval192("HAVAL");
++			set resp.http.HAVAL224_14 = digest.hash_haval224("0123456789");
++			set resp.http.HAVAL256_12 = digest.hash_haval256("abcdefghijklmnopqrstuvwxyz");
++			set resp.http.HAVAL256_13 = digest.hash_haval256("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
++			set resp.http.MD2_101 = digest.hash_md2("");
++			set resp.http.MD2_102 = digest.hash_md2("a");
++			set resp.http.MD2_103 = digest.hash_md2("abc");
++			set resp.http.MD2_104 = digest.hash_md2("message digest");
++			set resp.http.MD2_105 = digest.hash_md2("abcdefghijklmnopqrstuvwxyz");
++			set resp.http.MD2_106 = digest.hash_md2("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
++			set resp.http.MD2_107 = digest.hash_md2("12345678901234567890123456789012345678901234567890123456789012345678901234567890");
++			set resp.http.MD4_68 = digest.hash_md4("");
++			set resp.http.MD4_69 = digest.hash_md4("a");
++			set resp.http.MD4_70 = digest.hash_md4("abc");
++			set resp.http.MD4_71 = digest.hash_md4("message digest");
++			set resp.http.MD4_72 = digest.hash_md4("abcdefghijklmnopqrstuvwxyz");
++			set resp.http.MD4_73 = digest.hash_md4("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
++			set resp.http.MD4_74 = digest.hash_md4("12345678901234567890123456789012345678901234567890123456789012345678901234567890");
++			set resp.http.MD5_3 = digest.hash_md5("");
++			set resp.http.MD5_4 = digest.hash_md5("a");
++			set resp.http.MD5_5 = digest.hash_md5("abc");
++			set resp.http.MD5_6 = digest.hash_md5("message digest");
++			set resp.http.MD5_7 = digest.hash_md5("abcdefghijklmnopqrstuvwxyz");
++			set resp.http.MD5_8 = digest.hash_md5("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
++			set resp.http.MD5_9 = digest.hash_md5("12345678901234567890123456789012345678901234567890123456789012345678901234567890");
++		} elsif(req.url == "/2") {
++			set resp.http.RIPEMD128_18 = digest.hash_ripemd128("");
++			set resp.http.RIPEMD128_19 = digest.hash_ripemd128("a");
++			set resp.http.RIPEMD128_20 = digest.hash_ripemd128("abc");
++			set resp.http.RIPEMD128_21 = digest.hash_ripemd128("message digest");
++			set resp.http.RIPEMD128_22 = digest.hash_ripemd128("abcdefghijklmnopqrstuvwxyz");
++			set resp.http.RIPEMD128_23 = digest.hash_ripemd128("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq");
++			set resp.http.RIPEMD128_24 = digest.hash_ripemd128("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
++			set resp.http.RIPEMD128_25 = digest.hash_ripemd128("12345678901234567890123456789012345678901234567890123456789012345678901234567890");
++			set resp.http.RIPEMD160_26 = digest.hash_ripemd160("");
++			set resp.http.RIPEMD160_27 = digest.hash_ripemd160("a");
++			set resp.http.RIPEMD160_28 = digest.hash_ripemd160("abc");
++			set resp.http.RIPEMD160_29 = digest.hash_ripemd160("message digest");
++			set resp.http.RIPEMD160_30 = digest.hash_ripemd160("abcdefghijklmnopqrstuvwxyz");
++			set resp.http.RIPEMD160_31 = digest.hash_ripemd160("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq");
++			set resp.http.RIPEMD160_32 = digest.hash_ripemd160("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
++			set resp.http.RIPEMD160_33 = digest.hash_ripemd160("12345678901234567890123456789012345678901234567890123456789012345678901234567890");
++			set resp.http.RIPEMD256_34 = digest.hash_ripemd256("");
++			set resp.http.RIPEMD256_35 = digest.hash_ripemd256("a");
++			set resp.http.RIPEMD256_36 = digest.hash_ripemd256("abc");
++			set resp.http.RIPEMD256_37 = digest.hash_ripemd256("message digest");
++			set resp.http.RIPEMD256_38 = digest.hash_ripemd256("abcdefghijklmnopqrstuvwxyz");
++			set resp.http.RIPEMD256_39 = digest.hash_ripemd256("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq");
++			set resp.http.RIPEMD256_40 = digest.hash_ripemd256("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
++		} elsif(req.url == "/3") {
++			set resp.http.RIPEMD256_41 = digest.hash_ripemd256("12345678901234567890123456789012345678901234567890123456789012345678901234567890");
++			set resp.http.RIPEMD320_42 = digest.hash_ripemd320("");
++			set resp.http.RIPEMD320_43 = digest.hash_ripemd320("a");
++			set resp.http.RIPEMD320_44 = digest.hash_ripemd320("abc");
++			set resp.http.RIPEMD320_45 = digest.hash_ripemd320("message digest");
++			set resp.http.RIPEMD320_46 = digest.hash_ripemd320("abcdefghijklmnopqrstuvwxyz");
++			set resp.http.RIPEMD320_47 = digest.hash_ripemd320("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq");
++			set resp.http.RIPEMD320_48 = digest.hash_ripemd320("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
++			set resp.http.RIPEMD320_49 = digest.hash_ripemd320("12345678901234567890123456789012345678901234567890123456789012345678901234567890");
++			set resp.http.SHA1_10 = digest.hash_sha1("abc");
++			set resp.http.SHA1_11 = digest.hash_sha1("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq");
++			set resp.http.SHA224_78 = digest.hash_sha224("abc");
++			set resp.http.SHA224_79 = digest.hash_sha224("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq");
++			set resp.http.SHA256_75 = digest.hash_sha256("abc");
++			set resp.http.SHA256_76 = digest.hash_sha256("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq");
++			set resp.http.SHA256_77 = digest.hash_sha256("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu");
++			set resp.http.SHA384_82 = digest.hash_sha384("abc");
++			set resp.http.SHA384_83 = digest.hash_sha384("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu");
++			set resp.http.SHA512_80 = digest.hash_sha512("abc");
++			set resp.http.SHA512_81 = digest.hash_sha512("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu");
++		} elsif (req.url == "/4") {
++			set resp.http.SNEFRU128_92 = digest.hash_snefru128("abc");
++			set resp.http.SNEFRU128_93 = digest.hash_snefru128("abcdefghijklmnopqrstuvwxyz");
++			set resp.http.SNEFRU128_94 = digest.hash_snefru128("12345678901234567890123456789012345678901234567890123456789012345678901234567890");
++			set resp.http.SNEFRU128_95 = digest.hash_snefru128("Test message for buffer workflow test(47 bytes)");
++			set resp.http.SNEFRU128_96 = digest.hash_snefru128("Test message for buffer workflow test(48 bytes).");
++			set resp.http.SNEFRU128_97 = digest.hash_snefru128("Test message for buffer workflow test(49 bytes)..");
++			set resp.http.SNEFRU256_100 = digest.hash_snefru256("12345678901234567890123456789012345678901234567890123456789012345678901234567890");
++			set resp.http.SNEFRU256_98 = digest.hash_snefru256("abc");
++			set resp.http.SNEFRU256_99 = digest.hash_snefru256("abcdefghijklmnopqrstuvwxyz");
++			set resp.http.TIGER128_63 = digest.hash_tiger128("");
++			set resp.http.TIGER128_64 = digest.hash_tiger128("abc");
++			set resp.http.TIGER128_65 = digest.hash_tiger128("Tiger");
++			set resp.http.TIGER160_58 = digest.hash_tiger160("");
++			set resp.http.TIGER160_59 = digest.hash_tiger160("abc");
++			set resp.http.TIGER160_60 = digest.hash_tiger160("Tiger");
++			set resp.http.TIGER160_61 = digest.hash_tiger160("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-");
++			set resp.http.TIGER160_62 = digest.hash_tiger160("ABCDEFGHIJKLMNOPQRSTUVWXYZ=abcdefghijklmnopqrstuvwxyz+0123456789");
++			set resp.http.TIGER_50 = digest.hash_tiger("");
++			set resp.http.TIGER_51 = digest.hash_tiger("abc");
++			set resp.http.TIGER_52 = digest.hash_tiger("Tiger");
++			set resp.http.TIGER_53 = digest.hash_tiger("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-");
++			set resp.http.TIGER_54 = digest.hash_tiger("ABCDEFGHIJKLMNOPQRSTUVWXYZ=abcdefghijklmnopqrstuvwxyz+0123456789");
++			set resp.http.TIGER_55 = digest.hash_tiger("Tiger - A Fast New Hash Function, by Ross Anderson and Eli Biham");
++			set resp.http.TIGER_56 = digest.hash_tiger("Tiger - A Fast New Hash Function, by Ross Anderson and Eli Biham, proceedings of Fast Software Encryption 3, Cambridge.");
++			set resp.http.TIGER_57 = digest.hash_tiger("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-");
++			set resp.http.WHIRLPOOL_84 = digest.hash_whirlpool("");
++			set resp.http.WHIRLPOOL_85 = digest.hash_whirlpool("a");
++			set resp.http.WHIRLPOOL_86 = digest.hash_whirlpool("abc");
++			set resp.http.WHIRLPOOL_87 = digest.hash_whirlpool("message digest");
++			set resp.http.WHIRLPOOL_88 = digest.hash_whirlpool("abcdefghijklmnopqrstuvwxyz");
++			set resp.http.WHIRLPOOL_89 = digest.hash_whirlpool("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
++			set resp.http.WHIRLPOOL_90 = digest.hash_whirlpool("12345678901234567890123456789012345678901234567890123456789012345678901234567890");
++			set resp.http.WHIRLPOOL_91 = digest.hash_whirlpool("abcdbcdecdefdefgefghfghighijhijk");
++		}
++	}
++} -start
++
++client c1 {
++	txreq -url "/1"
++	rxresp
++	expect resp.http.CRC32_1 == "7fbeb02e"
++	expect resp.http.CRC32B_2 == "9adf6fde"
++	expect resp.http.GOST_66 == "b1c466d37519b82e8319819ff32595e047a28cb6f83eff1c6916a815a637fffa"
++	expect resp.http.GOST_67 == "471aba57a60a770d3a76130635c1fbea4ef14de51f78b4ae57dd893b62f55208"
++	expect resp.http.HAVAL128_17 == "c68f39913f901f3ddf44c707357a7d70"
++	expect resp.http.HAVAL160_16 == "4da08f514a7275dbc4cece4a347385983983a830"
++	expect resp.http.HAVAL192_15 == "8da26ddab4317b392b22b638998fe65b0fbe4610d345cf89"
++	expect resp.http.HAVAL224_14 == "ee345c97a58190bf0f38bf7ce890231aa5fcf9862bf8e7bebbf76789"
++	expect resp.http.HAVAL256_12 == "72fad4bde1da8c8332fb60561a780e7f504f21547b98686824fc33fc796afa76"
++	expect resp.http.HAVAL256_13 == "899397d96489281e9e76d5e65abab751f312e06c06c07c9c1d42abd31bb6a404"
++	expect resp.http.MD2_101 == "8350e5a3e24c153df2275c9f80692773"
++	expect resp.http.MD2_102 == "32ec01ec4a6dac72c0ab96fb34c0b5d1"
++	expect resp.http.MD2_103 == "da853b0d3f88d99b30283a69e6ded6bb"
++	expect resp.http.MD2_104 == "ab4f496bfb2a530b219ff33031fe06b0"
++	expect resp.http.MD2_105 == "4e8ddff3650292ab5a4108c3aa47940b"
++	expect resp.http.MD2_106 == "da33def2a42df13975352846c30338cd"
++	expect resp.http.MD2_107 == "d5976f79d83d3a0dc9806c3c66f3efd8"
++	expect resp.http.MD4_68 == "31d6cfe0d16ae931b73c59d7e0c089c0"
++	expect resp.http.MD4_69 == "bde52cb31de33e46245e05fbdbd6fb24"
++	expect resp.http.MD4_70 == "a448017aaf21d8525fc10ae87aa6729d"
++	expect resp.http.MD4_71 == "d9130a8164549fe818874806e1c7014b"
++	expect resp.http.MD4_72 == "d79e1c308aa5bbcdeea8ed63df412da9"
++	expect resp.http.MD4_73 == "043f8582f241db351ce627e153e7f0e4"
++	expect resp.http.MD4_74 == "e33b4ddc9c38f2199c3e7b164fcc0536"
++	expect resp.http.MD5_3 == "d41d8cd98f00b204e9800998ecf8427e"
++	expect resp.http.MD5_4 == "0cc175b9c0f1b6a831c399e269772661"
++	expect resp.http.MD5_5 == "900150983cd24fb0d6963f7d28e17f72"
++	expect resp.http.MD5_6 == "f96b697d7cb7938d525a2f31aaf161d0"
++	expect resp.http.MD5_7 == "c3fcd3d76192e4007dfb496cca67e13b"
++	expect resp.http.MD5_8 == "d174ab98d277d9f5a5611c2c9f419d9f"
++	expect resp.http.MD5_9 == "57edf4a22be3c955ac49da2e2107b67a"
++	txreq -url "/2"
++	rxresp
++	expect resp.http.RIPEMD128_18 == "cdf26213a150dc3ecb610f18f6b38b46"
++	expect resp.http.RIPEMD128_19 == "86be7afa339d0fc7cfc785e72f578d33"
++	expect resp.http.RIPEMD128_20 == "c14a12199c66e4ba84636b0f69144c77"
++	expect resp.http.RIPEMD128_21 == "9e327b3d6e523062afc1132d7df9d1b8"
++	expect resp.http.RIPEMD128_22 == "fd2aa607f71dc8f510714922b371834e"
++	expect resp.http.RIPEMD128_23 == "a1aa0689d0fafa2ddc22e88b49133a06"
++	expect resp.http.RIPEMD128_24 == "d1e959eb179c911faea4624c60c5c702"
++	expect resp.http.RIPEMD128_25 == "3f45ef194732c2dbb2c4a2c769795fa3"
++	expect resp.http.RIPEMD160_26 == "9c1185a5c5e9fc54612808977ee8f548b2258d31"
++	expect resp.http.RIPEMD160_27 == "0bdc9d2d256b3ee9daae347be6f4dc835a467ffe"
++	expect resp.http.RIPEMD160_28 == "8eb208f7e05d987a9b044a8e98c6b087f15a0bfc"
++	expect resp.http.RIPEMD160_29 == "5d0689ef49d2fae572b881b123a85ffa21595f36"
++	expect resp.http.RIPEMD160_30 == "f71c27109c692c1b56bbdceb5b9d2865b3708dbc"
++	expect resp.http.RIPEMD160_31 == "12a053384a9c0c88e405a06c27dcf49ada62eb2b"
++	expect resp.http.RIPEMD160_32 == "b0e20b6e3116640286ed3a87a5713079b21f5189"
++	expect resp.http.RIPEMD160_33 == "9b752e45573d4b39f4dbd3323cab82bf63326bfb"
++	expect resp.http.RIPEMD256_34 == "02ba4c4e5f8ecd1877fc52d64d30e37a2d9774fb1e5d026380ae0168e3c5522d"
++	expect resp.http.RIPEMD256_35 == "f9333e45d857f5d90a91bab70a1eba0cfb1be4b0783c9acfcd883a9134692925"
++	expect resp.http.RIPEMD256_36 == "afbd6e228b9d8cbbcef5ca2d03e6dba10ac0bc7dcbe4680e1e42d2e975459b65"
++	expect resp.http.RIPEMD256_37 == "87e971759a1ce47a514d5c914c392c9018c7c46bc14465554afcdf54a5070c0e"
++	expect resp.http.RIPEMD256_38 == "649d3034751ea216776bf9a18acc81bc7896118a5197968782dd1fd97d8d5133"
++	expect resp.http.RIPEMD256_39 == "3843045583aac6c8c8d9128573e7a9809afb2a0f34ccc36ea9e72f16f6368e3f"
++	expect resp.http.RIPEMD256_40 == "5740a408ac16b720b84424ae931cbb1fe363d1d0bf4017f1a89f7ea6de77a0b8"
++	txreq -url "/3"
++	rxresp
++	expect resp.http.RIPEMD256_41 == "06fdcc7a409548aaf91368c06a6275b553e3f099bf0ea4edfd6778df89a890dd"
++	expect resp.http.RIPEMD320_42 == "22d65d5661536cdc75c1fdf5c6de7b41b9f27325ebc61e8557177d705a0ec880151c3a32a00899b8"
++	expect resp.http.RIPEMD320_43 == "ce78850638f92658a5a585097579926dda667a5716562cfcf6fbe77f63542f99b04705d6970dff5d"
++	expect resp.http.RIPEMD320_44 == "de4c01b3054f8930a79d09ae738e92301e5a17085beffdc1b8d116713e74f82fa942d64cdbc4682d"
++	expect resp.http.RIPEMD320_45 == "3a8e28502ed45d422f68844f9dd316e7b98533fa3f2a91d29f84d425c88d6b4eff727df66a7c0197"
++	expect resp.http.RIPEMD320_46 == "cabdb1810b92470a2093aa6bce05952c28348cf43ff60841975166bb40ed234004b8824463e6b009"
++	expect resp.http.RIPEMD320_47 == "d034a7950cf722021ba4b84df769a5de2060e259df4c9bb4a4268c0e935bbc7470a969c9d072a1ac"
++	expect resp.http.RIPEMD320_48 == "ed544940c86d67f250d232c30b7b3e5770e0c60c8cb9a4cafe3b11388af9920e1b99230b843c86a4"
++	expect resp.http.RIPEMD320_49 == "557888af5f6d8ed62ab66945c6d2a0a47ecd5341e915eb8fea1d0524955f825dc717e4a008ab2d42"
++	expect resp.http.SHA1_10 == "a9993e364706816aba3e25717850c26c9cd0d89d"
++	expect resp.http.SHA1_11 == "84983e441c3bd26ebaae4aa1f95129e5e54670f1"
++	expect resp.http.SHA224_78 == "23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7"
++	expect resp.http.SHA224_79 == "75388b16512776cc5dba5da1fd890150b0c6455cb4f58b1952522525"
++	expect resp.http.SHA256_75 == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
++	expect resp.http.SHA256_76 == "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"
++	expect resp.http.SHA256_77 == "cf5b16a778af8380036ce59e7b0492370b249b11e8f07a51afac45037afee9d1"
++	expect resp.http.SHA384_82 == "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7"
++	expect resp.http.SHA384_83 == "09330c33f71147e83d192fc782cd1b4753111b173b3b05d22fa08086e3b0f712fcc7c71a557e2db966c3e9fa91746039"
++	expect resp.http.SHA512_80 == "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
++	expect resp.http.SHA512_81 == "8e959b75dae313da8cf4f72814fc143f8f7779c6eb9f7fa17299aeadb6889018501d289e4900f7e4331b99dec4b5433ac7d329eeb6dd26545e96e55b874be909"
++	txreq -url "/4"
++	rxresp
++	expect resp.http.SNEFRU128_92 == "553d0648928299a0f22a275a02c83b10"
++	expect resp.http.SNEFRU128_93 == "7840148a66b91c219c36f127a0929606"
++	expect resp.http.SNEFRU128_94 == "d9204ed80bb8430c0b9c244fe485814a"
++	expect resp.http.SNEFRU128_95 == "dd0d1ab288c3c36671044f41c5077ad6"
++	expect resp.http.SNEFRU128_96 == "e7054f05bd72d7e86a052153a17c741d"
++	expect resp.http.SNEFRU128_97 == "9b34204833422df13c83e10a0c6d080a"
++	expect resp.http.SNEFRU256_100 == "d5fce38a152a2d9b83ab44c29306ee45ab0aed0e38c957ec431dab6ed6bb71b8"
++	expect resp.http.SNEFRU256_98 == "7d033205647a2af3dc8339f6cb25643c33ebc622d32979c4b612b02c4903031b"
++	expect resp.http.SNEFRU256_99 == "9304bb2f876d9c4f54546cf7ec59e0a006bead745f08c642f25a7c808e0bf86e"
++	expect resp.http.TIGER128_63 == "24f0130c63ac933216166e76b1bb925f"
++	expect resp.http.TIGER128_64 == "f258c1e88414ab2a527ab541ffc5b8bf"
++	expect resp.http.TIGER128_65 == "9f00f599072300dd276abb38c8eb6dec"
++	expect resp.http.TIGER160_58 == "24f0130c63ac933216166e76b1bb925ff373de2d"
++	expect resp.http.TIGER160_59 == "f258c1e88414ab2a527ab541ffc5b8bf935f7b95"
++	expect resp.http.TIGER160_60 == "9f00f599072300dd276abb38c8eb6dec37790c11"
++	expect resp.http.TIGER160_61 == "87fb2a9083851cf7470d2cf810e6df9eb5864450"
++	expect resp.http.TIGER160_62 == "467db80863ebce488df1cd1261655de957896565"
++	expect resp.http.TIGER_50 == "24f0130c63ac933216166e76b1bb925ff373de2d49584e7a"
++	expect resp.http.TIGER_51 == "f258c1e88414ab2a527ab541ffc5b8bf935f7b951c132951"
++	expect resp.http.TIGER_52 == "9f00f599072300dd276abb38c8eb6dec37790c116f9d2bdf"
++	expect resp.http.TIGER_53 == "87fb2a9083851cf7470d2cf810e6df9eb586445034a5a386"
++	expect resp.http.TIGER_54 == "467db80863ebce488df1cd1261655de957896565975f9197"
++	expect resp.http.TIGER_55 == "0c410a042968868a1671da5a3fd29a725ec1e457d3cdb303"
++	expect resp.http.TIGER_56 == "ebf591d5afa655ce7f22894ff87f54ac89c811b6b0da3193"
++	expect resp.http.TIGER_57 == "00b83eb4e53440c576ac6aaee0a7485825fd15e70a59ffe4"
++	expect resp.http.WHIRLPOOL_84 == "19fa61d75522a4669b44e39c1d2e1726c530232130d407f89afee0964997f7a73e83be698b288febcf88e3e03c4f0757ea8964e59b63d93708b138cc42a66eb3"
++	expect resp.http.WHIRLPOOL_85 == "8aca2602792aec6f11a67206531fb7d7f0dff59413145e6973c45001d0087b42d11bc645413aeff63a42391a39145a591a92200d560195e53b478584fdae231a"
++	expect resp.http.WHIRLPOOL_86 == "4e2448a4c6f486bb16b6562c73b4020bf3043e3a731bce721ae1b303d97e6d4c7181eebdb6c57e277d0e34957114cbd6c797fc9d95d8b582d225292076d4eef5"
++	expect resp.http.WHIRLPOOL_87 == "378c84a4126e2dc6e56dcc7458377aac838d00032230f53ce1f5700c0ffb4d3b8421557659ef55c106b4b52ac5a4aaa692ed920052838f3362e86dbd37a8903e"
++	expect resp.http.WHIRLPOOL_88 == "f1d754662636ffe92c82ebb9212a484a8d38631ead4238f5442ee13b8054e41b08bf2a9251c30b6a0b8aae86177ab4a6f68f673e7207865d5d9819a3dba4eb3b"
++	expect resp.http.WHIRLPOOL_89 == "dc37e008cf9ee69bf11f00ed9aba26901dd7c28cdec066cc6af42e40f82f3a1e08eba26629129d8fb7cb57211b9281a65517cc879d7b962142c65f5a7af01467"
++	expect resp.http.WHIRLPOOL_90 == "466ef18babb0154d25b9d38a6414f5c08784372bccb204d6549c4afadb6014294d5bd8df2a6c44e538cd047b2681a51a2c60481e88c5a20b2c2a80cf3a9a083b"
++	expect resp.http.WHIRLPOOL_91 == "2a987ea40f917061f5d6f0a0e4644f488a7a5a52deee656207c562f988e95c6916bdc8031bc5be1b7b947639fe050b56939baaa0adff9ae6745b7b181c3be3fd"
++}
++
++client c1 -run
+diff --git a/varnish4-vmods/libvmod-digest-4.0/src/tests/test_hex.vtc b/varnish4-vmods/libvmod-digest-4.0/src/tests/test_hex.vtc
+new file mode 100644
+index 0000000..9c2aef4
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0/src/tests/test_hex.vtc
+@@ -0,0 +1,48 @@
++varnishtest "Test base64 hex encoding"
++
++server s1 {
++       rxreq
++       txresp
++} -start
++
++varnish v1 -vcl+backend {
++	import digest from "${vmod_topbuild}/src/.libs/libvmod_digest.so";
++
++	sub vcl_deliver {
++		set resp.http.hmac_sha1 = digest.hmac_sha1("secret", "test string");
++		set resp.http.hmac_sha1_b64 = digest.base64(digest.hmac_sha1("secret", "test string"));
++		set resp.http.hmac_sha1_b64_hex = digest.base64_hex(digest.hmac_sha1("secret", "test string"));
++
++		set resp.http.md5 = digest.hash_md5("test string");
++		set resp.http.md5_b64 = digest.base64(digest.hash_md5("test string"));
++		set resp.http.md5_b64_hex = digest.base64_hex(digest.hash_md5("test string"));
++
++		set resp.http.test1_b64 = digest.base64("TeST");
++		set resp.http.test1_b64_hex = digest.base64_hex("0x54655354");
++
++		set resp.http.test2_b64_url = digest.base64url("Interesting!");
++		set resp.http.test2_b64_url_hex = digest.base64url_hex("496E746572657374696E6721");
++
++		set resp.http.test3_b64_unopad = digest.base64url_nopad("$");
++		set resp.http.test3_b64_unopad_hex = digest.base64url_nopad_hex("0x24");
++	}
++} -start
++
++client c1 {
++	txreq -url "/"
++	rxresp
++
++	expect resp.http.hmac_sha1 == "0xdd26bfddf122c1055d4cd5b054227727e1e3eecf"
++	expect resp.http.hmac_sha1_b64 == "MHhkZDI2YmZkZGYxMjJjMTA1NWQ0Y2Q1YjA1NDIyNzcyN2UxZTNlZWNm"
++	expect resp.http.hmac_sha1_b64_hex == "3Sa/3fEiwQVdTNWwVCJ3J+Hj7s8="
++
++	expect resp.http.md5 == "6f8db599de986fab7a21625b7916589c"
++	expect resp.http.md5_b64 == "NmY4ZGI1OTlkZTk4NmZhYjdhMjE2MjViNzkxNjU4OWM="
++	expect resp.http.md5_b64_hex == "b421md6Yb6t6IWJbeRZYnA=="
++
++	expect resp.http.test1_b64 == resp.http.test1_b64_hex
++	expect resp.http.test2_b64_url == resp.http.test2_b64_url_hex
++	expect resp.http.test3_b64_unopad == resp.http.test3_b64_unopad_hex
++}
++
++client c1 -run
+diff --git a/varnish4-vmods/libvmod-digest-4.0/src/tests/test_nullstring.vtc b/varnish4-vmods/libvmod-digest-4.0/src/tests/test_nullstring.vtc
+new file mode 100644
+index 0000000..637cd2c
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0/src/tests/test_nullstring.vtc
+@@ -0,0 +1,30 @@
++varnishtest "Test digest vmod for nullstrings"
++
++# Blank keys should return NULL/"", while blank data should be treated as
++# an empty string (i.e. ""). We treat keys differently because there should
++# always be a key, and not having one is almost certainly a bug and should
++# be painfully visible.
++
++server s1 {
++       rxreq
++       txresp
++} -start
++
++varnish v1 -vcl+backend {
++	import digest from "${vmod_topbuild}/src/.libs/libvmod_digest.so";
++
++	sub vcl_deliver {
++		set resp.http.sha1 = digest.hash_sha1(resp.http.blank-header);
++		set resp.http.hmac_sha1 = "BUNNY";
++		set resp.http.hmac_sha1 = resp.http.hmac_sha1 + digest.hmac_sha1(resp.http.blank-header, "The quick brown fox jumps over the lazy dog");
++	}
++} -start
++
++client c1 {
++	txreq -url "/"
++	rxresp
++	expect resp.http.sha1 == "da39a3ee5e6b4b0d3255bfef95601890afd80709"
++	expect resp.http.hmac_sha1 == "BUNNY"
++}
++
++client c1 -run
+diff --git a/varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.c b/varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.c
+new file mode 100644
+index 0000000..0836988
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.c
+@@ -0,0 +1,498 @@
++/*-
++ * Copyright (c) 2011 Varnish Software AS
++ * All rights reserved.
++ *
++ * Author: Kristian Lyngstøl <kristian@varnish-cache.org>
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
++ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
++ * ARE DISCLAIMED.  IN NO EVENT SHALL AUTHOR OR CONTRIBUTORS BE LIABLE
++ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
++ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
++ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
++ * SUCH DAMAGE.
++ */
++
++/*
++ * Digest vmod for Varnish, using libmhash.
++ * See README.rst for usage.
++ */
++#include <stdbool.h>
++#include <stdlib.h>
++#include <stdarg.h>
++#include <stdio.h>
++
++/*
++ * mhash.h has a habit of pulling in assert(). Let's hope it's a define,
++ * and that we can undef it, since Varnish has a better one.
++ */
++#include <mhash.h>
++#ifdef assert
++#	undef assert
++#endif
++#undef PACKAGE
++#undef PACKAGE_BUGREPORT
++#undef PACKAGE_NAME
++#undef PACKAGE_STRING
++#undef PACKAGE_TARNAME
++#undef PACKAGE_VERSION
++#undef VERSION
++
++#include "vcl.h"
++#include "vrt.h"
++#include "cache/cache.h"
++#include "vcc_if.h"
++#include "config.h"
++
++#ifndef MIN
++#define MIN(a,b) ((a) > (b) ? (b) : (a))
++#endif
++
++#ifndef VRT_CTX
++#define VRT_CTX		const struct vrt_ctx *ctx
++#endif
++
++enum alphabets {
++	BASE64 = 0,
++	BASE64URL = 1,
++	BASE64URLNOPAD = 2,
++	N_ALPHA
++};
++
++static struct e_alphabet {
++	char *b64;
++	char i64[256];
++	char padding;
++} alphabet[N_ALPHA];
++
++/*
++ * Initializes the reverse lookup-table for the relevant base-N alphabet.
++ */
++static void
++vmod_digest_alpha_init(struct e_alphabet *alpha)
++{
++	int i;
++	const char *p;
++
++	for (i = 0; i < 256; i++)
++		alpha->i64[i] = -1;
++	for (p = alpha->b64, i = 0; *p; p++, i++)
++		alpha->i64[(int)*p] = (char)i;
++	if (alpha->padding)
++		alpha->i64[(int)alpha->padding] = 0;
++}
++
++int
++init_function(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e e)
++{
++	(void)ctx;
++	(void)priv;
++
++	if (e != VCL_EVENT_LOAD)
++		return (0);
++
++    	alphabet[BASE64].b64 =
++		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"
++		"ghijklmnopqrstuvwxyz0123456789+/";
++	alphabet[BASE64].padding = '=';
++	alphabet[BASE64URL].b64 =
++		 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"
++		 "ghijklmnopqrstuvwxyz0123456789-_";
++	alphabet[BASE64URL].padding = '=';
++	alphabet[BASE64URLNOPAD].b64 =
++		 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"
++		 "ghijklmnopqrstuvwxyz0123456789-_";
++	alphabet[BASE64URLNOPAD].padding = 0;
++	vmod_digest_alpha_init(&alphabet[BASE64]);
++	vmod_digest_alpha_init(&alphabet[BASE64URL]);
++	vmod_digest_alpha_init(&alphabet[BASE64URLNOPAD]);
++	return (0);
++}
++
++/*
++ * Decodes the string s into the buffer d (size dlen), using the alphabet
++ * specified.
++ *
++ * Modified slightly from varnishncsa's decoder. Mainly because the
++ * input-length is known, so padding is optional (this is per the RFC and
++ * allows this code to be used regardless of whether padding is present).
++ * Also returns the length of data when it succeeds.
++ */
++static int
++base64_decode(struct e_alphabet *alpha, char *d, unsigned dlen, const char *s)
++{
++	unsigned u, v, l;
++	int i;
++
++	u = 0;
++	l = 0;
++	while (*s) {
++		for (v = 0; v < 4; v++) {
++			if (*s)
++				i = alpha->i64[(int)*s++];
++			else
++				i = 0;
++			if (i < 0)
++				return (-1);
++			u <<= 6;
++			u |= i;
++		}
++		for (v = 0; v < 3; v++) {
++			if (l >= dlen - 1)
++				return (-1);
++			*d = (u >> 16) & 0xff;
++			u <<= 8;
++			l++;
++			d++;
++		}
++		if (!*s)
++			break;
++	}
++	*d = '\0';
++	l++;
++	return (l);
++}
++
++/*
++ * Convert a hex character into an int
++ */
++static unsigned char
++char_to_int (char c)
++{
++	if (c >= '0' && c <= '9')
++		return c - '0';
++	else if (c >= 'a' && c <= 'f')
++		return c - 87;
++	else if (c >= 'A' && c <= 'F')
++		return c - 55;
++	else
++		return 0;
++}
++
++/*
++ * Convert a hex value into an 8bit int
++ */
++static unsigned char
++hex_to_int(const char *in, size_t inlen)
++{
++	unsigned char value = 0;
++
++	assert(inlen >= 2);
++
++	value = char_to_int(in[0]) << 4;
++	value += char_to_int(in[1]);
++
++	return value;
++}
++
++/*
++ * Base64-encode *in (size: inlen) into *out, max outlen bytes. If there is
++ * insufficient space, it will bail out and return -1. Otherwise, it will
++ * null-terminate and return the used space.
++ * The alphabet `a` defines... the alphabet. Padding is optional.
++ * Inspired heavily by gnulib/Simon Josefsson (as referenced in RFC4648)
++ */
++static size_t
++base64_encode(struct e_alphabet *alpha, const char *in,
++    size_t inlen, int is_hex, char *out, size_t outlen)
++{
++	size_t out_used = 0;
++
++	/*
++	 * If reading a hex string, if "0x" is present, strip. When no further
++	 * characters follow, we return an empty output string.
++	 */
++	if (is_hex && inlen > 2 && in[0] == '0' && in[1] == 'x') {
++		in += 2;
++		inlen -= 2;
++	}
++
++	/*
++	 * B64 requires 4*ceil(n/3) bytes of space + 1 nul terminator
++	 * byte to generate output for a given input length n. When is_hex is
++	 * set, each character of inlen represents half a byte, hence the
++	 * division by 6.
++	 */
++	if ((!is_hex && outlen < 4 * (inlen + 2 / 3) + 1) ||
++	    ( is_hex && outlen < 4 * (inlen + 5 / 6) + 1))
++		return -1;
++
++	while ((!is_hex && inlen) || (is_hex && inlen >= 2)) {
++		unsigned char tmp[3] = {0, 0, 0};
++		unsigned char idx;
++		int min_avail = is_hex ? MIN(inlen, 6) : MIN(inlen, 3);
++		int nread = 0;
++		int off = 0;
++
++		if (is_hex) {
++			while (min_avail >= 2) {
++				tmp[off++] = hex_to_int(in, inlen);
++				in += 2;
++				inlen -= 2;
++				nread++;
++				min_avail -= 2;
++			}
++		} else {
++			memcpy(tmp, in, min_avail);
++			in += min_avail;
++			inlen -= min_avail;
++			nread = min_avail;
++		}
++
++		*out++ = alpha->b64[(tmp[0] >> 2) & 0x3f];
++
++		idx = (tmp[0] << 4);
++		if (nread > 1)
++			idx += (tmp[1] >> 4);
++		idx &= 0x3f;
++		*out++ = alpha->b64[idx];
++
++		if (nread > 1) {
++			idx = (tmp[1] << 2);
++			if (nread > 2)
++				idx += tmp[2] >> 6;
++			idx &= 0x3f;
++
++			*out++ = alpha->b64[idx];
++		} else if (alpha->padding)
++			*out++ = alpha->padding;
++
++		if (nread > 2)
++			*out++ = alpha->b64[tmp[2] & 0x3f];
++		else if (alpha->padding)
++			*out++ = alpha->padding;
++
++		if (alpha->padding)
++			out_used += 4;
++		else
++			out_used += 2 + (nread - 1);
++	}
++
++	*out = '\0';
++
++	return out_used + 1;
++}
++
++VCL_STRING
++vmod_hmac_generic(VRT_CTX, hashid hash, const char *key, const char *msg)
++{
++	size_t blocksize = mhash_get_block_size(hash);
++	unsigned char mac[blocksize];
++	unsigned char *hexenc;
++	unsigned char *hexptr;
++	size_t j;
++	MHASH td;
++
++	assert(msg);
++	assert(key);
++	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
++	CHECK_OBJ_NOTNULL(ctx->ws, WS_MAGIC);
++
++	/*
++	 * XXX: From mhash(3):
++	 * size_t mhash_get_hash_pblock(hashid type);
++	 *     It returns the block size that the algorithm operates. This
++	 *     is used in mhash_hmac_init. If the return value is 0 you
++	 *     shouldn't use that algorithm in  HMAC.
++	 */
++	assert(mhash_get_hash_pblock(hash) > 0);
++
++	td = mhash_hmac_init(hash, (void *) key, strlen(key),
++		mhash_get_hash_pblock(hash));
++	mhash(td, msg, strlen(msg));
++	mhash_hmac_deinit(td,mac);
++
++	/*
++	 * HEX-encode
++	 */
++	hexenc = (void *)WS_Alloc(ctx->ws, 2*blocksize+3); // 0x, '\0' + 2 per input
++	if (hexenc == NULL)
++		return NULL;
++	hexptr = hexenc;
++	sprintf((char*)hexptr,"0x");
++	hexptr+=2;
++	for (j = 0; j < blocksize; j++) {
++		sprintf((char*)hexptr,"%.2x", mac[j]);
++		hexptr+=2;
++		assert((hexptr-hexenc)<(2*(long)blocksize + 3));
++	}
++	*hexptr = '\0';
++	return (const char *)hexenc;
++}
++
++VCL_STRING
++vmod_base64_generic(VRT_CTX, enum alphabets a, const char *msg, int is_hex)
++{
++	char *p;
++	int u;
++
++	assert(msg);
++	assert(a<N_ALPHA);
++
++	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
++	CHECK_OBJ_NOTNULL(ctx->ws, WS_MAGIC);
++
++	u = WS_Reserve(ctx->ws,0);
++	p = ctx->ws->f;
++	u = base64_encode(&alphabet[a],msg,strlen(msg),is_hex,p,u);
++	if (u < 0) {
++		WS_Release(ctx->ws,0);
++		return NULL;
++	}
++	WS_Release(ctx->ws,u);
++	return p;
++}
++
++VCL_STRING
++vmod_base64_decode_generic(VRT_CTX, enum alphabets a, const char *msg)
++{
++	char *p;
++	int u;
++
++	assert(msg);
++	assert(a<N_ALPHA);
++
++	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
++	CHECK_OBJ_NOTNULL(ctx->ws, WS_MAGIC);
++
++	u = WS_Reserve(ctx->ws,0);
++	p = ctx->ws->f;
++	u = base64_decode(&alphabet[a], p,u,msg);
++	if (u < 0) {
++		WS_Release(ctx->ws,0);
++		return NULL;
++	}
++	WS_Release(ctx->ws,u);
++	return p;
++}
++
++VCL_STRING
++vmod_hash_generic(VRT_CTX, hashid hash, const char *msg)
++{
++	MHASH td;
++	unsigned char h[mhash_get_block_size(hash)];
++	unsigned int i;
++	char *p;
++	char *ptmp;
++
++	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
++	td = mhash_init(hash);
++	mhash(td, msg, strlen(msg));
++	mhash_deinit(td, h);
++	p = WS_Alloc(ctx->ws,mhash_get_block_size(hash)*2 + 1);
++	AN(p);
++	ptmp = p;
++	for (i = 0; i<mhash_get_block_size(hash);i++) {
++		sprintf(ptmp,"%.2x",h[i]);
++		ptmp+=2;
++	}
++	return p;
++}
++
++#define VMOD_HASH_FOO(low, high) \
++VCL_STRING __match_proto__ () \
++vmod_hash_ ## low (VRT_CTX, const char *msg) \
++{ \
++	if (msg == NULL) \
++		msg = ""; \
++	return vmod_hash_generic(ctx, MHASH_ ## high, msg); \
++}
++
++VMOD_HASH_FOO(sha1,SHA1)
++VMOD_HASH_FOO(sha224,SHA224)
++VMOD_HASH_FOO(sha256,SHA256)
++VMOD_HASH_FOO(sha384,SHA384)
++VMOD_HASH_FOO(sha512,SHA512)
++VMOD_HASH_FOO(gost,GOST)
++VMOD_HASH_FOO(md2,MD2)
++VMOD_HASH_FOO(md4,MD4)
++VMOD_HASH_FOO(md5,MD5)
++VMOD_HASH_FOO(crc32,CRC32)
++VMOD_HASH_FOO(crc32b,CRC32B)
++VMOD_HASH_FOO(adler32,ADLER32)
++VMOD_HASH_FOO(haval128,HAVAL128)
++VMOD_HASH_FOO(haval160,HAVAL160)
++VMOD_HASH_FOO(haval192,HAVAL192)
++VMOD_HASH_FOO(haval224,HAVAL224)
++VMOD_HASH_FOO(haval256,HAVAL256)
++VMOD_HASH_FOO(ripemd128,RIPEMD128)
++VMOD_HASH_FOO(ripemd160,RIPEMD160)
++VMOD_HASH_FOO(ripemd256,RIPEMD256)
++VMOD_HASH_FOO(ripemd320,RIPEMD320)
++VMOD_HASH_FOO(tiger,TIGER)
++VMOD_HASH_FOO(tiger128,TIGER128)
++VMOD_HASH_FOO(tiger160,TIGER160)
++VMOD_HASH_FOO(snefru128,SNEFRU128)
++VMOD_HASH_FOO(snefru256,SNEFRU256)
++VMOD_HASH_FOO(whirlpool,WHIRLPOOL)
++
++#define VMOD_ENCODE_FOO(codec_low,codec_big) \
++VCL_STRING __match_proto__ () \
++vmod_ ## codec_low (VRT_CTX, const char *msg) \
++{ \
++	if (msg == NULL) \
++		msg = ""; \
++	return vmod_base64_generic(ctx,codec_big,msg, 0); \
++} \
++\
++VCL_STRING __match_proto__ () \
++vmod_ ## codec_low ## _hex (VRT_CTX, const char *msg) \
++{ \
++	if (msg == NULL) \
++		msg = ""; \
++	return vmod_base64_generic(ctx,codec_big,msg, 1); \
++} \
++\
++const char * __match_proto__ () \
++vmod_ ## codec_low ## _decode (VRT_CTX, const char *msg) \
++{ \
++	if (msg == NULL) \
++		msg = ""; \
++	return vmod_base64_decode_generic(ctx,codec_big,msg); \
++}
++
++VMOD_ENCODE_FOO(base64,BASE64)
++VMOD_ENCODE_FOO(base64url,BASE64URL)
++VMOD_ENCODE_FOO(base64url_nopad,BASE64URLNOPAD)
++
++/*
++ * XXX: We assume it's better to return a NULL-string if no key is present,
++ * XXX: to avoid having bugs that are "invisible" due to an actual hash
++ * XXX: being made. For the content, blank data is valid.
++ */
++#define VMOD_HMAC_FOO(hash,hashup) \
++VCL_STRING \
++vmod_hmac_ ## hash(VRT_CTX, const char *key, const char *msg) \
++{ \
++	if (msg == NULL) \
++		msg = ""; \
++	if (key == NULL) \
++		return NULL; \
++	return vmod_hmac_generic(ctx, MHASH_ ## hashup, key, msg); \
++}
++
++
++VMOD_HMAC_FOO(sha256,SHA256)
++VMOD_HMAC_FOO(sha1,SHA1)
++VMOD_HMAC_FOO(md5,MD5)
++
++
++VCL_STRING __match_proto__()
++vmod_version(VRT_CTX)
++{
++	(void)ctx;
++	return VERSION;
++}
+diff --git a/varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.vcc b/varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.vcc
+new file mode 100644
+index 0000000..c6c7bae
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.vcc
+@@ -0,0 +1,42 @@
++$Module digest 3 Varnish Digest Module
++$Event init_function
++$Function STRING hmac_sha256(STRING, STRING)
++$Function STRING hmac_sha1(STRING, STRING)
++$Function STRING hmac_md5(STRING, STRING)
++$Function STRING base64(STRING)
++$Function STRING base64_hex(STRING)
++$Function STRING base64_decode(STRING)
++$Function STRING base64url(STRING)
++$Function STRING base64url_hex(STRING)
++$Function STRING base64url_decode(STRING)
++$Function STRING base64url_nopad(STRING)
++$Function STRING base64url_nopad_hex(STRING)
++$Function STRING base64url_nopad_decode(STRING)
++$Function STRING hash_sha1(STRING)
++$Function STRING hash_sha224(STRING)
++$Function STRING hash_sha256(STRING)
++$Function STRING hash_sha384(STRING)
++$Function STRING hash_sha512(STRING)
++$Function STRING hash_gost(STRING)
++$Function STRING hash_md2(STRING)
++$Function STRING hash_md4(STRING)
++$Function STRING hash_md5(STRING)
++$Function STRING hash_crc32(STRING)
++$Function STRING hash_crc32b(STRING)
++$Function STRING hash_adler32(STRING)
++$Function STRING hash_haval128(STRING)
++$Function STRING hash_haval160(STRING)
++$Function STRING hash_haval192(STRING)
++$Function STRING hash_haval224(STRING)
++$Function STRING hash_haval256(STRING)
++$Function STRING hash_ripemd128(STRING)
++$Function STRING hash_ripemd160(STRING)
++$Function STRING hash_ripemd256(STRING)
++$Function STRING hash_ripemd320(STRING)
++$Function STRING hash_tiger(STRING)
++$Function STRING hash_tiger128(STRING)
++$Function STRING hash_tiger160(STRING)
++$Function STRING hash_snefru128(STRING)
++$Function STRING hash_snefru256(STRING)
++$Function STRING hash_whirlpool(STRING)
++$Function STRING version()
+-- 
+2.7.4
+

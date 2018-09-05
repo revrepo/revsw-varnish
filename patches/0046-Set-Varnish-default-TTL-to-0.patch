@@ -1,0 +1,26 @@
+From b2187a9f066d4f83cb1b602f9209b1476d9c52f6 Mon Sep 17 00:00:00 2001
+From: Victor Gartvich <victor@revsw.com>
+Date: Sun, 22 Nov 2015 06:23:00 +0000
+Subject: [PATCH 46/63] Set Varnish default TTL to 0
+
+---
+ varnish-4.0.3/debian/revsw-varnish4.init | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/varnish-4.0.3/debian/revsw-varnish4.init b/varnish-4.0.3/debian/revsw-varnish4.init
+index b1240b3..f5be017 100644
+--- a/varnish-4.0.3/debian/revsw-varnish4.init
++++ b/varnish-4.0.3/debian/revsw-varnish4.init
+@@ -40,6 +40,9 @@ ulimit -l ${MEMLOCK:-82000}
+ # installed application server.)
+ DAEMON_OPTS=${DAEMON_OPTS:--b localhost}
+ 
++# Set default TTL to 0
++DAEMON_OPTS="${DAEMON_OPTS} -t 0"
++
+ # Ensure we have a PATH
+ export PATH="${PATH:+$PATH:}/usr/sbin:/usr/bin:/sbin:/bin"
+ 
+-- 
+2.7.4
+

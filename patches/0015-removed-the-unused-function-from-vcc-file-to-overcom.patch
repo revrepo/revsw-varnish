@@ -1,0 +1,40 @@
+From ede571bd0a32fc0b1a37cb77db0fa787e8d5d08e Mon Sep 17 00:00:00 2001
+From: vimal gupta <vimal.gupta@techvedika.com>
+Date: Fri, 19 Dec 2014 14:56:01 +0530
+Subject: [PATCH 15/63] removed the unused function from vcc file to overcome
+ import issue
+
+---
+ libvmod-var-4.0/src/vmod_var.vcc | 10 ----------
+ 1 file changed, 10 deletions(-)
+
+diff --git a/libvmod-var-4.0/src/vmod_var.vcc b/libvmod-var-4.0/src/vmod_var.vcc
+index 90911ef..da6b8bd 100644
+--- a/libvmod-var-4.0/src/vmod_var.vcc
++++ b/libvmod-var-4.0/src/vmod_var.vcc
+@@ -22,8 +22,6 @@ $Function BOOL global_get_bool(STRING)
+ $Function VOID set_int(STRING, INT)
+ $Function INT get_int(STRING)
+ $Function VOID set_string(STRING, STRING)
+-$Function VOID set_string_allow_null(STRING, STRING)
+-$Function VOID set_string_literal(STRING, STRING)
+ $Function STRING get_string(STRING)
+ $Function VOID set_real(STRING, REAL)
+ $Function REAL get_real(STRING)
+@@ -31,13 +29,5 @@ $Function VOID set_duration(STRING, DURATION)
+ $Function DURATION get_duration(STRING)
+ $Function VOID set_bool(STRING, BOOL)
+ $Function BOOL get_bool(STRING)
+-$Function BOOL and_or_set_bool(STRING, BOOL)
+-$Function BOOL or_or_set_bool(STRING, BOOL)
+-
+-$Function VOID new_string_set(STRING)
+-$Function INT string_set_is_empty(STRING)
+-$Function VOID add_to_string_set(STRING, STRING)
+-$Function VOID del_from_string_set(STRING, STRING)
+-$Function STRING get_string_set_as_csv(STRING)
+ 
+ $Function VOID clear()
+-- 
+2.7.4
+

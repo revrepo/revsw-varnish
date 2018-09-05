@@ -1,0 +1,105 @@
+From 423d188178df9cdcdef77cf69e64dc5749bf0f14 Mon Sep 17 00:00:00 2001
+From: Igor <igor@pbne.mygbiz.com>
+Date: Fri, 30 Oct 2015 15:47:30 +0100
+Subject: [PATCH 45/63] split: fix makefile
+
+---
+ Makefile                   | 29 ++++++++++++++++-------------
+ revsw-opensource-common.mk |  8 +++++---
+ 2 files changed, 21 insertions(+), 16 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 5851fa7..618b12f 100644
+--- a/Makefile
++++ b/Makefile
+@@ -16,16 +16,18 @@ varnish4-set-version: VER_TEMP_FILE=/tmp/varnish4.changes.$(shell date +%s)
+ varnish4-set-version: VER_CHANGELOG=$(VARN4_SRC)/debian/changelog
+ varnish4-set-version: set-version
+ 
+-varnish4-pkg: varnish4-set-version check-varnish-repo
+-	cd $(VARN4_SRC)/ && mk-build-deps -i -t "apt-get -y"  && dpkg-buildpackage -d -uc
+-	mkdir -p $(DEBS)/ && mv revsw-*varnish4*.* $(DEBS)/ && chmod 666 $(DEBS)/*.*
++varnish4-pkg: varnish4-set-version
++	rm -f $(DEBS)/revsw-varnish4*.* $(DEBS)/revsw-libvarnish4*; 
++	cd $(VARN4_SRC)/ && mk-build-deps -i -t "apt-get -y"  && dpkg-buildpackage -d -uc -us
++	(mkdir -p $(DEBS)/ && mv revsw-*varnish4*.* $(DEBS)/ && chmod 666 $(DEBS)/*.*) || (echo "file move error $?"; true)
+ 
+ varnish4: docker
+-	@if [ ! -f $(DEBSINSIDE)/revsw-varnish4_4.0.3-$(BUILD_MINOR)_amd64.deb ]; then echo "no proper deb in debs"; ($(WRAPPER) make -f $(MAKEF) varnish4-pkg BUILD_MINOR=$(BUILD_MINOR) || $(WRAPPER) make -f $(MAKEF) undo-varnish4-ver clean); \
++	@if [ ! -f $(DEBSINSIDE)/revsw-varnish4_4.0.3-$(BUILD_MINOR)_amd64.deb ]; then \
++		echo "no proper deb in debs"; \
++		(($(WRAPPER) make -f $(MAKEF) varnish4-pkg BUILD_MINOR=$(BUILD_MINOR)) || ($(WRAPPER) make -f $(MAKEF) undo-varnish4-ver clean; echo Failing build; false;)); \
+ 	else \
+ 		if [ $(shell find $(VARN4_SRC)/ -newer $(DEBSINSIDE)/revsw-varnish4_4.0.3-$(BUILD_MINOR)_amd64.deb 2>/dev/null | wc -l) -gt 0 ]; then \
+-			rm -f "$(DEBS)/revsw-varnish4-*.*"; \
+-			(($(WRAPPER) make -f $(MAKEF) varnish4-pkg undo-varnish4-ver BUILD_MINOR=$(BUILD_MINOR); $(WRAPPER) make -f $(MAKEF) clean) || $(WRAPPER) make -f $(MAKEF) undo-varnish4-ver; false); \
++			(($(WRAPPER) make -f $(MAKEF) varnish4-pkg undo-varnish4-ver BUILD_MINOR=$(BUILD_MINOR); $(WRAPPER) make -f $(MAKEF) clean) || ($(WRAPPER) make -f $(MAKEF) undo-varnish4-ver clean; echo Failing build; false)); \
+ 		else \
+ 		     echo "skipping varnish4"; \
+ 		fi \
+@@ -36,21 +38,22 @@ varnish4vmods-set-version: VER_TEMP_FILE=/tmp/varnish4mods.changes.$(shell date
+ varnish4vmods-set-version: VER_CHANGELOG=$(VARM4_SRC)/debian/changelog
+ varnish4vmods-set-version: set-version
+ 
+-varnish4vmods-pkg: varnish4vmods-set-version varnish4-pkg
+-	cd $(VARM4_SRC)/ && mk-build-deps -i -t "apt-get -y" && dpkg-buildpackage -d -uc
+-	mkdir -p $(DEBS)/ && mv revsw-varn*.* $(DEBS)/ && chmod 666 $(DEBS)/*.*
++varnish4vmods-pkg: varnish4vmods-set-version
++	rm -f $(DEBS)/revsw4-varnish4-mods*.*
++	cd $(VARM4_SRC)/ && mk-build-deps -i -t "apt-get -y" && dpkg-buildpackage -d -uc -us
++	(mkdir -p $(DEBS)/ && mv revsw-varn*.* $(DEBS)/ && chmod 666 $(DEBS)/*.*) || (echo "file move error $?"; true)
+ 
+ varnish4vmods: docker
+ 	@if [ ! -f $(DEBSINSIDE)/revsw-varnish4-mods-$(BUILD_MINOR)_amd64.deb ]; then \
+-		echo "no proper deb in debs"; ($(WRAPPER) make -f $(MAKEF) varnish4vmods-pkg BUILD_MINOR=$(BUILD_MINOR) || $(WRAPPER) make -f $(MAKEF) undo-vmod-ver clean; false); \
++		echo "no proper deb in debs"; \
++		(($(WRAPPER) make -f $(MAKEF) varnish4vmods-pkg BUILD_MINOR=$(BUILD_MINOR)) || ($(WRAPPER) make -f $(MAKEF) undo-vmod-ver clean; echo Failing build; false)); \
+ 	else \
+ 		if [ $(shell find $(VARM4_SRC)/ -newer $(DEBSINSIDE)/revsw-varnish4-mods-$(BUILD_MINOR).deb 2>/dev/null | wc -l) -gt 0 ]; then \
+-			rm -f $(DEBS)/revsw4-varnish4-mods*.*; \
+-			($(WRAPPER) make -f $(MAKEF) check-varnish-repo varnish4vmods-pkg undo-vmod-ver BUILD_MINOR=$(BUILD_MINOR); $(WRAPPER) make -f $(MAKEF) clean || $(WRAPPER) make -f $(MAKEF) undo-vmod-ver); \
++			(($(WRAPPER) make -f $(MAKEF) check-varnish-repo varnish4vmods-pkg undo-vmod-ver BUILD_MINOR=$(BUILD_MINOR); $(WRAPPER) make -f $(MAKEF) clean) || ($(WRAPPER) make -f $(MAKEF) undo-vmod-ver clean; echo Failing build; false)); \
+ 		else\
+ 	    	echo "skipping varnish-vmods";\
+ 		fi \
+ 	fi
+ 
+ 
+-all: varnish4 varnish4vmods
+\ No newline at end of file
++all: varnish4 varnish4vmods
+diff --git a/revsw-opensource-common.mk b/revsw-opensource-common.mk
+index c9ea92a..724e302 100644
+--- a/revsw-opensource-common.mk
++++ b/revsw-opensource-common.mk
+@@ -1,6 +1,6 @@
+ BUILD_MINOR?=1
+-DEBSINSIDE?=debs
+-DEBS?=/work/$(DEBSINSIDE)
++DEBSINSIDE=debs
++DEBS=/home/jenkins/workspace/Proxy_Varnish_Build/$(DEBSINSIDE)
+ MAKEF=$(word 1,$(MAKEFILE_LIST))
+ DATE_STAMP=$(shell date "+%a, %d %b %Y %H:%M:%S %z")
+ DIR=$(shell pwd)
+@@ -50,7 +50,7 @@ build-if-need-status:
+ 	fi
+ 
+ clean:
+-	@git clean -fd .
++	@git clean -fd . 1>/dev/null
+ 
+ check-varnish-repo:
+ 	@mkdir -p $(DEBS) && cd $(DEBS) && dpkg-scanpackages . > Packages && rm -f *.bz2 && bzip2 -kf Packages
+@@ -58,7 +58,9 @@ check-varnish-repo:
+ 		echo "Updating repository list to point to $(DEBS)"; \
+ 		echo "deb [trusted=yes] file://$(DEBS) /" >> $(APT_REPO); cat $(APT_REPO);\
+ 	fi
++	@echo Packages updated
+ 	@apt-get update -o Dir::Etc::sourcelist="sources.list.d/revsw-varnish-on-ci.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0";
++	@echo APT updated
+ 
+ 
+ define BUILD_IF_NEED_STATUS
+-- 
+2.7.4
+

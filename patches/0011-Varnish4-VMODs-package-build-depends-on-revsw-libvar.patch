@@ -1,0 +1,27 @@
+From 727ea01f9945a5f18a4a0289c21260c201580efa Mon Sep 17 00:00:00 2001
+From: sorinrevsw <sorin.revsw@gmail.com>
+Date: Thu, 18 Dec 2014 17:56:22 +0200
+Subject: [PATCH 11/63] Varnish4 VMODs package build-depends on
+ 'revsw-libvarnishapi-dev'.
+
+---
+ debian/control | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/debian/control b/debian/control
+index 957c6ea..52ece0d 100644
+--- a/debian/control
++++ b/debian/control
+@@ -2,7 +2,8 @@ Source: revsw-varnish-modules
+ Section: web
+ Priority: extra
+ Maintainer: Sorin Otescu <sorin@revsw.com>
+-Build-Depends: debhelper (>= 7), build-essential, python-docutils
++Build-Depends: debhelper (>= 7), build-essential, python-docutils,
++ revsw-libvarnishapi-dev
+ Built-Using: revsw-varnish (= 4.0.2)
+ Standards-Version: 3.8.1
+ 
+-- 
+2.7.4
+

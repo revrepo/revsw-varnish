@@ -1,0 +1,22 @@
+From 672999addfa07ad7d4bbae8a9667b34a650a0b0e Mon Sep 17 00:00:00 2001
+From: Victor Gartvich <victor@revsw.com>
+Date: Fri, 1 Dec 2017 21:47:09 +0000
+Subject: [PATCH 62/63] Small fix in packaging configuration
+
+---
+ varnish-4.0.3/debian/revsw-varnish4.install | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/varnish-4.0.3/debian/revsw-varnish4.install b/varnish-4.0.3/debian/revsw-varnish4.install
+index afeb074..899b79d 100644
+--- a/varnish-4.0.3/debian/revsw-varnish4.install
++++ b/varnish-4.0.3/debian/revsw-varnish4.install
+@@ -1,4 +1,5 @@
+ etc/varnish/default.vcl
++etc/varnish/revsw.vcl
+ usr/bin/*
+ usr/sbin/*
+ usr/lib/*/varnish
+-- 
+2.7.4
+

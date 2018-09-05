@@ -1,0 +1,23 @@
+From e5a4f26f4b7be5f2055c3973deefe473d1430a21 Mon Sep 17 00:00:00 2001
+From: Victor Gartvich <victor@revsw.com>
+Date: Mon, 4 Dec 2017 05:47:41 +0000
+Subject: [PATCH 63/63] Add wurfl-related memory adjustments to
+ /etc/default/revsw-varnish4 file
+
+---
+ varnish-4.0.3/debian/revsw-varnish4.default | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/varnish-4.0.3/debian/revsw-varnish4.default b/varnish-4.0.3/debian/revsw-varnish4.default
+index 77be007..cf22063 100644
+--- a/varnish-4.0.3/debian/revsw-varnish4.default
++++ b/varnish-4.0.3/debian/revsw-varnish4.default
+@@ -50,4 +50,5 @@ DAEMON_OPTS="-a 127.0.0.1:8080,127.0.0.1:8443 \
+              -p thread_pool_max=4000 \
+              -p thread_pool_add_delay=1 \
+              -p timeout_linger=1 \
++             -p thread_pool_stack=96k \
+              -p feature=+esi_disable_xml_check"
+-- 
+2.7.4
+

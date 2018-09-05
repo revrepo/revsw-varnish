@@ -1,0 +1,979 @@
+From 9546a5b2b9cb7e6ec4fc4c5ab340ddd11a9deda7 Mon Sep 17 00:00:00 2001
+From: vimal gupta <vimal.gupta@techvedika.com>
+Date: Thu, 18 Dec 2014 14:32:41 +0530
+Subject: [PATCH 10/63] Updated the missed file in previous commit
+
+---
+ debian/control                                     |   2 +-
+ debian/rules                                       |  16 +-
+ libvmod-chromelogger-4.0/src/vmod_chromelogger.c   |  18 +-
+ libvmod-chromelogger-4.0/src/vmod_chromelogger.vcc |   2 +-
+ libvmod-querystring/Makefile.in                    |  19 +-
+ libvmod-var-4.0/Makefile.am                        |   5 +
+ libvmod-var-4.0/README                             |  24 +-
+ libvmod-var-4.0/autogen.sh                         |   2 +-
+ libvmod-var-4.0/configure.ac                       |  37 +--
+ libvmod-var-4.0/man/Makefile.am                    |   7 +-
+ libvmod-var-4.0/src/Makefile.am                    |  20 +-
+ libvmod-var-4.0/src/tests/test01.vtc               |   2 +-
+ libvmod-var-4.0/src/tests/test03.vtc               |   2 +-
+ libvmod-var-4.0/src/vmod_var.c                     | 342 +++++++++++++--------
+ libvmod-var-4.0/src/vmod_var.vcc                   |  55 +++-
+ 15 files changed, 330 insertions(+), 223 deletions(-)
+
+diff --git a/debian/control b/debian/control
+index 5a6345d..957c6ea 100644
+--- a/debian/control
++++ b/debian/control
+@@ -8,7 +8,7 @@ Standards-Version: 3.8.1
+ 
+ Package: revsw-varnish-modules
+ Architecture: any
+-Depends: revsw-varnish (>= 3.0.5), ${Varnish:ABI}, ${misc:Depends}
++Depends: revsw-varnish (>= 4.0.2), ${Varnish:ABI}, ${misc:Depends}
+ Description: Various VMODs for Varnish
+  Includes: Cookie, Timers, ChromeLogger, Header, Var
+ 
+diff --git a/debian/rules b/debian/rules
+index 7cb4bdb..1b5aee9 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -8,10 +8,8 @@ VMOD_ABI := $(shell printf '\#include "vmod_abi.h"\nVMOD_ABI_Version' | cpp - -I
+ override_dh_auto_configure:
+ 	cd libvmod-chromelogger-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+ 	cd libvmod-cookie-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+-	cd libvmod-header-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+-	cd libvmod-querystring && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+-	cd libvmod-timers-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+ 	cd libvmod-var-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
++	cd libvmod-header-4.0 && ./autogen.sh && ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+ 
+ override_dh_gencontrol:
+ 	echo "Varnish:ABI=$(VMOD_ABI)" >> debian/substvars
+@@ -25,26 +23,20 @@ override_dh_gencontrol:
+ override_dh_auto_build:
+ 	$(MAKE) -C libvmod-chromelogger-4.0
+ 	$(MAKE) -C libvmod-cookie-4.0
+-	$(MAKE) -C libvmod-header-4.0
+-	$(MAKE) -C libvmod-querystring
+-	$(MAKE) -C libvmod-timers-4.0
+ 	$(MAKE) -C libvmod-var-4.0
++	$(MAKE) -C libvmod-header-4.0
+ 
+ override_dh_auto_install:
+ 	$(MAKE) -C libvmod-chromelogger-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+ 	$(MAKE) -C libvmod-cookie-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+-	$(MAKE) -C libvmod-header-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+-	$(MAKE) -C libvmod-querystring DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+-	$(MAKE) -C libvmod-timers-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+ 	$(MAKE) -C libvmod-var-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
++	$(MAKE) -C libvmod-header-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish-modules install
+ 
+ override_dh_auto_clean:
+ 	$(MAKE) -C libvmod-chromelogger-4.0 distclean || true
+ 	$(MAKE) -C libvmod-cookie-4.0 distclean || true
+-	$(MAKE) -C libvmod-header-4.0 distclean || true
+-	$(MAKE) -C libvmod-querystring distclean || true
+-	$(MAKE) -C libvmod-timers-4.0 distclean || true
+ 	$(MAKE) -C libvmod-var-4.0 distclean || true
++	$(MAKE) -C libvmod-header-4.0 distclean || true
+ 
+ override_dh_strip:
+ 	dh_strip --dbg-package=revsw-varnish-modules-dbg
+diff --git a/libvmod-chromelogger-4.0/src/vmod_chromelogger.c b/libvmod-chromelogger-4.0/src/vmod_chromelogger.c
+index f8f1053..f279744 100644
+--- a/libvmod-chromelogger-4.0/src/vmod_chromelogger.c
++++ b/libvmod-chromelogger-4.0/src/vmod_chromelogger.c
+@@ -4,7 +4,7 @@
+ #include <ctype.h>
+ 
+ #include "vrt.h"
+-#include "bin/varnishd/cache.h"
++#include "cache/cache.h"
+ 
+ #include "vcc_if.h"
+ 
+@@ -57,7 +57,7 @@ void vmod_VSB_base64_encode(struct vsb *s, const char *p, ssize_t len);
+  * Add a new log message.
+  */
+ void
+-vmod_log(struct sess *sp, const char *s) {
++vmod_log(const struct  vrt_ctx *ctx, const char *s) {
+         int c;
+         struct entry *newentry;
+ 
+@@ -66,7 +66,7 @@ vmod_log(struct sess *sp, const char *s) {
+ 		return;
+ 	}
+ 
+-        newentry = (struct entry*)WS_Alloc(sp->ws, sizeof(struct entry));
++        newentry = (struct entry*)WS_Alloc(ctx->req->sp->ws, sizeof(struct entry));
+ 	AN(newentry);
+ 
+         strncpy(newentry->data, s, MAX_DATA);
+@@ -81,7 +81,7 @@ vmod_log(struct sess *sp, const char *s) {
+  *
+  */
+ const char * __match_proto__()
+-vmod_collect(struct sess *sp) {
++vmod_collect(const struct  vrt_ctx *ctx) {
+         struct entry *e;
+         struct entry *e2;
+ 	struct vsb *json;
+@@ -89,14 +89,14 @@ vmod_collect(struct sess *sp) {
+ 	unsigned v, u;
+ 	char *p;
+ 
+-	CHECK_OBJ_NOTNULL(sp, SESS_MAGIC);
++	CHECK_OBJ_NOTNULL(ctx->req->sp, SESS_MAGIC);
+ 
+         if (VTAILQ_EMPTY(&logentries)) {
+                 return NULL;
+         }
+ 
+-	u = WS_Reserve(sp->wrk->ws, 0);
+-	p = sp->wrk->ws->f;
++	u = WS_Reserve(ctx->req->wrk->aws, 0);
++	p = ctx->req->wrk->aws->f;
+ 
+ 	json = VSB_new_auto();
+ 	AN(json);
+@@ -133,10 +133,10 @@ vmod_collect(struct sess *sp) {
+ 
+ 	v++;
+ 	if (v > u) {
+-			WS_Release(sp->wrk->ws, 0);
++			WS_Release(ctx->req->wrk->aws, 0);
+ 			return (NULL);
+ 	}
+-	WS_Release(sp->wrk->ws, v);
++	WS_Release(ctx->req->wrk->aws, v);
+ 	return (p);
+ }
+ 
+diff --git a/libvmod-chromelogger-4.0/src/vmod_chromelogger.vcc b/libvmod-chromelogger-4.0/src/vmod_chromelogger.vcc
+index 08ce6e3..df7bf07 100644
+--- a/libvmod-chromelogger-4.0/src/vmod_chromelogger.vcc
++++ b/libvmod-chromelogger-4.0/src/vmod_chromelogger.vcc
+@@ -1,3 +1,3 @@
+-Module chromelogger
++$Module chromelogger
+ Function VOID log(STRING)
+ Function STRING collect()
+diff --git a/libvmod-querystring/Makefile.in b/libvmod-querystring/Makefile.in
+index 9f821da..90eef29 100644
+--- a/libvmod-querystring/Makefile.in
++++ b/libvmod-querystring/Makefile.in
+@@ -1,4 +1,4 @@
+-# Makefile.in generated by automake 1.13.3 from Makefile.am.
++# Makefile.in generated by automake 1.14.1 from Makefile.am.
+ # @configure_input@
+ 
+ # Copyright (C) 1994-2013 Free Software Foundation, Inc.
+@@ -113,8 +113,8 @@ subdir = .
+ DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
+ 	$(top_srcdir)/configure $(am__configure_deps) \
+ 	$(srcdir)/config.h.in $(dist_man_MANS) $(dist_doc_DATA) \
+-	INSTALL config.guess config.sub depcomp install-sh missing \
+-	ltmain.sh
++	INSTALL compile config.guess config.sub depcomp install-sh \
++	missing ltmain.sh
+ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
+ am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
+ 	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
+@@ -435,8 +435,8 @@ $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
+ $(am__aclocal_m4_deps):
+ 
+ config.h: stamp-h1
+-	@if test ! -f $@; then rm -f stamp-h1; else :; fi
+-	@if test ! -f $@; then $(MAKE) $(AM_MAKEFLAGS) stamp-h1; else :; fi
++	@test -f $@ || rm -f stamp-h1
++	@test -f $@ || $(MAKE) $(AM_MAKEFLAGS) stamp-h1
+ 
+ stamp-h1: $(srcdir)/config.h.in $(top_builddir)/config.status
+ 	@rm -f stamp-h1
+@@ -709,10 +709,16 @@ dist-xz: distdir
+ 	$(am__post_remove_distdir)
+ 
+ dist-tarZ: distdir
++	@echo WARNING: "Support for shar distribution archives is" \
++	               "deprecated." >&2
++	@echo WARNING: "It will be removed altogether in Automake 2.0" >&2
+ 	tardir=$(distdir) && $(am__tar) | compress -c >$(distdir).tar.Z
+ 	$(am__post_remove_distdir)
+ 
+ dist-shar: distdir
++	@echo WARNING: "Support for distribution archives compressed with" \
++		       "legacy program 'compress' is deprecated." >&2
++	@echo WARNING: "It will be removed altogether in Automake 2.0" >&2
+ 	shar $(distdir) | GZIP=$(GZIP_ENV) gzip -c >$(distdir).shar.gz
+ 	$(am__post_remove_distdir)
+ 
+@@ -754,9 +760,10 @@ distcheck: dist
+ 	  && dc_destdir="$${TMPDIR-/tmp}/am-dc-$$$$/" \
+ 	  && am__cwd=`pwd` \
+ 	  && $(am__cd) $(distdir)/_build \
+-	  && ../configure --srcdir=.. --prefix="$$dc_install_base" \
++	  && ../configure \
+ 	    $(AM_DISTCHECK_CONFIGURE_FLAGS) \
+ 	    $(DISTCHECK_CONFIGURE_FLAGS) \
++	    --srcdir=.. --prefix="$$dc_install_base" \
+ 	  && $(MAKE) $(AM_MAKEFLAGS) \
+ 	  && $(MAKE) $(AM_MAKEFLAGS) dvi \
+ 	  && $(MAKE) $(AM_MAKEFLAGS) check \
+diff --git a/libvmod-var-4.0/Makefile.am b/libvmod-var-4.0/Makefile.am
+index ca6044c..b3c32dd 100644
+--- a/libvmod-var-4.0/Makefile.am
++++ b/libvmod-var-4.0/Makefile.am
+@@ -1,3 +1,8 @@
+ ACLOCAL_AMFLAGS = -I m4
+ 
++DISTCHECK_CONFIGURE_FLAGS = \
++        VMOD_DIR='$${libdir}/varnish/vmods'
++
++EXTRA_DIST = README LICENSE vmod-var.spec debian
++
+ SUBDIRS = src man
+diff --git a/libvmod-var-4.0/README b/libvmod-var-4.0/README
+index 7374fc8..279a422 100644
+--- a/libvmod-var-4.0/README
++++ b/libvmod-var-4.0/README
+@@ -1,18 +1,19 @@
+ This VMOD implements basic variable in VCL. Well. It's more of an
+ association list with support for strings, ints and reals.
+ 
+-import var;
++There are methods to get and set each type.
+ 
+-sub vcl_recv {
++Global variables have a lifespan that extends across requests and
++VCLs, for as long as the vmod is loaded. Non-globals are local to a
++single request.
+ 
+-    # count the number of iDevices:
+-    if (req.http.user-agent ~ iP(od|ad|hone) ) {
+-       	set var.set_int("idevs", var.get_int("i1") + 1 );
+-    }
++Prototype, most should be self-explaining:
+ 
+-There are methods to get and set each type.
++Function VOID set(STRING, STRING)
++Function STRING get(STRING)
+ 
+-Prototype, most should be self-explaining:
++Function VOID global_set(STRING, STRING)
++Function STRING global_get(STRING)
+ 
+ Function VOID set_int(STRING, INT)
+ Function INT get_int(STRING)
+@@ -28,4 +29,9 @@ Function DURATION get_duration(STRING)
+ 
+ Function VOID clear()
+ 
+-clear() clears the whole variable space.
+\ No newline at end of file
++clear() clears the whole non-global variable space.
++
++
++VARNISH 4.0 LIMITATION: This VMOD is currently NOT available in the
++following Varnish 4.0 VCL methods: vcl_backend_fetch,
++vcl_backend_response and vcl_backend_error. See github issue #5
+diff --git a/libvmod-var-4.0/autogen.sh b/libvmod-var-4.0/autogen.sh
+index 9a12ef5..2e1fb89 100755
+--- a/libvmod-var-4.0/autogen.sh
++++ b/libvmod-var-4.0/autogen.sh
+@@ -37,8 +37,8 @@ fi
+ 
+ set -ex
+ 
+-aclocal -I m4
+ $LIBTOOLIZE --copy --force
++aclocal -I m4
+ autoheader
+ automake --add-missing --copy --foreign
+ autoconf
+diff --git a/libvmod-var-4.0/configure.ac b/libvmod-var-4.0/configure.ac
+index b7fdd96..a17a02b 100644
+--- a/libvmod-var-4.0/configure.ac
++++ b/libvmod-var-4.0/configure.ac
+@@ -1,6 +1,6 @@
+-AC_PREREQ(2.59)
+-AC_COPYRIGHT([Copyright (c) 2011 Varnish Software AS])
+-AC_INIT([libvmod-var], [trunk])
++AC_PREREQ(2.64)
++AC_COPYRIGHT([Copyright (c) 2011-2014 Varnish Software AS])
++AC_INIT([libvmod-var], [0.1])
+ AC_CONFIG_MACRO_DIR([m4])
+ AC_CONFIG_SRCDIR(src/vmod_var.vcc)
+ AM_CONFIG_HEADER(config.h)
+@@ -39,31 +39,14 @@ AC_CHECK_HEADERS([sys/stdlib.h])
+ # Check for python
+ AC_CHECK_PROGS(PYTHON, [python3 python3.1 python3.2 python2.7 python2.6 python2.5 python2 python], [AC_MSG_ERROR([Python is needed to build this vmod, please install python.])])
+ 
+-# Varnish source tree
+-AC_ARG_VAR([VARNISHSRC], [path to Varnish source tree (mandatory)])
+-if test "x$VARNISHSRC" = x; then
+-	AC_MSG_ERROR([No Varnish source tree specified])
+-fi
+-VARNISHSRC=`cd $VARNISHSRC && pwd`
+-AC_CHECK_FILE([$VARNISHSRC/include/varnishapi.h],
+-	[],
+-	[AC_MSG_FAILURE(["$VARNISHSRC" is not a Varnish source directory])]
+-)
+-
+-# Check that varnishtest is built in the varnish source directory
+-AC_CHECK_FILE([$VARNISHSRC/bin/varnishtest/varnishtest],
+-	[],
+-	[AC_MSG_FAILURE([Can't find "$VARNISHSRC/bin/varnishtest/varnishtest". Please build your varnish source directory])]
+-)
++# Varnish include files tree
++VARNISH_VMOD_INCLUDES
++VARNISH_VMOD_DIR
++VARNISH_VMODTOOL
+ 
+-# vmod installation dir
+-AC_ARG_VAR([VMODDIR], [vmod installation directory @<:@LIBDIR/varnish/vmods@:>@])
+-if test "x$VMODDIR" = x; then
+-	VMODDIR=`pkg-config --variable=vmoddir varnishapi`
+-	if test "x$VMODDIR" = x; then
+-		AC_MSG_FAILURE([Can't determine vmod installation directory])
+-	fi
+-fi
++AC_PATH_PROG([VARNISHTEST], [varnishtest])
++AC_PATH_PROG([VARNISHD], [varnishd], [],
++    [$PATH:$PATH:`pkg-config varnishapi --variable=sbindir`])
+ 
+ AC_CONFIG_FILES([
+ 	Makefile
+diff --git a/libvmod-var-4.0/man/Makefile.am b/libvmod-var-4.0/man/Makefile.am
+index 15fdbe2..91ab35e 100644
+--- a/libvmod-var-4.0/man/Makefile.am
++++ b/libvmod-var-4.0/man/Makefile.am
+@@ -1,11 +1,12 @@
+ #
+ 
+-dist_man_MANS = vmod_example.3
++dist_man_MANS = vmod_var.3
+ MAINTAINERCLEANFILES = $(dist_man_MANS)
++EXTRA_DIST = vmod_var.rst
+ 
+-vmod_example.3: vmod_example.rst
++vmod_var.3: vmod_var.rst
+ if HAVE_RST2MAN
+-	${RST2MAN} vmod_example.rst $@
++	${RST2MAN} vmod_var.rst $@
+ else
+ 	@echo "========================================"
+ 	@echo "You need rst2man installed to make dist"
+diff --git a/libvmod-var-4.0/src/Makefile.am b/libvmod-var-4.0/src/Makefile.am
+index bcf187c..feb3ed3 100644
+--- a/libvmod-var-4.0/src/Makefile.am
++++ b/libvmod-var-4.0/src/Makefile.am
+@@ -1,23 +1,23 @@
+-INCLUDES = -I$(VARNISHSRC)/include -I$(VARNISHSRC)
++AM_CPPFLAGS = @VMOD_INCLUDES@
+ 
+-vmoddir = $(VMODDIR)
++vmoddir = @VMOD_DIR@
+ vmod_LTLIBRARIES = libvmod_var.la
+ 
+-libvmod_var_la_LDFLAGS = -module -export-dynamic -avoid-version
++libvmod_var_la_LDFLAGS = -module -export-dynamic -avoid-version -shared
+ 
+ libvmod_var_la_SOURCES = \
+ 	vcc_if.c \
+ 	vcc_if.h \
+ 	vmod_var.c
+ 
+-vcc_if.c vcc_if.h: $(VARNISHSRC)/lib/libvmod_std/vmod.py $(top_srcdir)/src/vmod_var.vcc
+-	@PYTHON@ $(VARNISHSRC)/lib/libvmod_std/vmod.py $(top_srcdir)/src/vmod_var.vcc
++vcc_if.c vcc_if.h: @VMODTOOL@ $(top_srcdir)/src/vmod_var.vcc
++	@VMODTOOL@ $(top_srcdir)/src/vmod_var.vcc
+ 
+-VMOD_TESTS = tests/*.vtc
++VMOD_TESTS =  $(top_srcdir)/src/tests/*.vtc
+ .PHONY: $(VMOD_TESTS)
+ 
+-tests/*.vtc:
+-	$(VARNISHSRC)/bin/varnishtest/varnishtest -Dvarnishd=$(VARNISHSRC)/bin/varnishd/varnishd -Dvmod_topbuild=$(abs_top_builddir) $@
++$(top_srcdir)/src/tests/*.vtc:
++	@VARNISHTEST@ -Dvarnishd=@VARNISHD@ -Dvmod_topbuild=$(abs_top_builddir) $@
+ 
+ check: $(VMOD_TESTS)
+ 
+@@ -25,4 +25,6 @@ EXTRA_DIST = \
+ 	vmod_var.vcc \
+ 	$(VMOD_TESTS)
+ 
+-CLEANFILES = $(builddir)/vcc_if.c $(builddir)/vcc_if.h
++CLEANFILES = $(builddir)/vcc_if.c $(builddir)/vcc_if.h \
++	$(builddir)/vmod_var.man.rst \
++	$(builddir)/vmod_var.rst
+diff --git a/libvmod-var-4.0/src/tests/test01.vtc b/libvmod-var-4.0/src/tests/test01.vtc
+index a307194..f1c067a 100644
+--- a/libvmod-var-4.0/src/tests/test01.vtc
++++ b/libvmod-var-4.0/src/tests/test01.vtc
+@@ -1,4 +1,4 @@
+-varnishtest "Test example vmod"
++varnishtest "Test var vmod"
+ 
+ server s1 {
+        rxreq
+diff --git a/libvmod-var-4.0/src/tests/test03.vtc b/libvmod-var-4.0/src/tests/test03.vtc
+index ffc34a9..2c17c94 100644
+--- a/libvmod-var-4.0/src/tests/test03.vtc
++++ b/libvmod-var-4.0/src/tests/test03.vtc
+@@ -1,4 +1,4 @@
+-varnishtest "Test example vmod"
++varnishtest "Test var vmod"
+ 
+ server s1 {
+        rxreq
+diff --git a/libvmod-var-4.0/src/vmod_var.c b/libvmod-var-4.0/src/vmod_var.c
+index 2e2d0c4..ec1c653 100644
+--- a/libvmod-var-4.0/src/vmod_var.c
++++ b/libvmod-var-4.0/src/vmod_var.c
+@@ -2,23 +2,28 @@
+ #include <ctype.h>
+ 
+ #include "vrt.h"
+-#include "bin/varnishd/cache.h"
++#include "cache/cache.h"
+ 
+ #include "vcc_if.h"
+ 
+ enum VAR_TYPE {
++	UNSET,
+ 	STRING,
+ 	INT,
+ 	REAL,
+-	DURATION
++	DURATION,
++	BOOL
+ };
+ 
+ struct var {
++	unsigned magic;
++#define VAR_MAGIC 0x8A21A651
+ 	char *name;
+ 	enum VAR_TYPE type;
+ 	union {
+ 		char *STRING;
+ 		int INT;
++		unsigned BOOL;
+ 		double REAL;
+ 		double DURATION;
+ 	} value;
+@@ -27,78 +32,91 @@ struct var {
+ 
+ struct var_head {
+ 	unsigned magic;
+-#define VMOD_VAR_MAGIC 0x64F33E2F
+-	unsigned xid;
++#define VAR_HEAD_MAGIC 0x64F33E2F
++	uint32_t vxid;
+ 	VTAILQ_HEAD(, var) vars;
+ };
+ 
+-static struct var_head **var_list;
+-int var_list_sz;
+-VTAILQ_HEAD(, var) global_vars = VTAILQ_HEAD_INITIALIZER(global_vars);
++static struct var_head **var_list = NULL;
++static int var_list_sz = 0;
++static VTAILQ_HEAD(, var) global_vars = VTAILQ_HEAD_INITIALIZER(global_vars);
+ static pthread_mutex_t var_list_mtx = PTHREAD_MUTEX_INITIALIZER;
+ 
++static void
++vh_init(struct var_head *vh)
++{
+ 
+-static void vh_init(struct var_head *vh) {
+-	vh->magic = VMOD_VAR_MAGIC;
+-	VTAILQ_INIT(&vh->vars);
+-}
+-
+-static void vh_clear(struct var_head *vh) {
+-	struct var *v, *v2;
+-
++	AN(vh);
++	memset(vh, 0, sizeof *vh);
++	vh->magic = VAR_HEAD_MAGIC;
+ 	VTAILQ_INIT(&vh->vars);
+-	VTAILQ_FOREACH_SAFE(v, &vh->vars, list, v2) {
+-		VTAILQ_REMOVE(&vh->vars, v, list);
+-	}
+-	vh->xid = 0;
+-	vh->magic = 0;
+ }
+ 
+-static struct var * vh_get_var(struct var_head *vh, const char *name) {
++static struct var *
++vh_get_var(struct var_head *vh, const char *name)
++{
+ 	struct var *v;
+ 
+-	if (!name)
+-		return NULL;
++	AN(vh);
++	AN(name);
+ 	VTAILQ_FOREACH(v, &vh->vars, list) {
+-		if (v->name && strcmp(v->name, name) == 0)
++		CHECK_OBJ_NOTNULL(v, VAR_MAGIC);
++		AN(v->name);
++		if (strcmp(v->name, name) == 0)
+ 			return v;
+ 	}
+ 	return NULL;
+ }
+ 
+-static struct var * vh_get_var_alloc(struct var_head *vh, const char *name, struct sess *sp)
++
++static struct var *
++vh_get_var_alloc(struct var_head *vh, const char *name, const struct vrt_ctx *ctx)
+ {
+ 	struct var *v;
+-	v = vh_get_var(vh, name);
+ 
+-	if (!v) {
++	v = vh_get_var(vh, name);
++	if (!v)
++	{
+ 		/* Allocate and add */
+-		v = (struct var*)WS_Alloc(sp->ws, sizeof(struct var));
++		v = (struct var*)WS_Alloc(ctx->ws, sizeof(struct var));
+ 		AN(v);
+-		v->name = WS_Dup(sp->ws, name);
++		v->magic = VAR_MAGIC;
++		v->name = WS_Copy(ctx->ws, name, -1);
+ 		AN(v->name);
+ 		VTAILQ_INSERT_HEAD(&vh->vars, v, list);
++	
+ 	}
++		
++
+ 	return v;
+ }
+ 
+ int
+ init_function(struct vmod_priv *priv, const struct VCL_conf *conf)
+ {
+-	var_list_sz = 256;
+-	var_list = malloc(sizeof(struct var_head *) * 256);
+-	AN(var_list);
+-	for (int i = 0 ; i < var_list_sz; i++) {
+-		var_list[i] = malloc(sizeof(struct var_head));
+-		vh_init(var_list[i]);
++
++	AZ(pthread_mutex_lock(&var_list_mtx));
++	if (var_list == NULL) {
++		AZ(var_list_sz);
++		var_list_sz = 256;
++		var_list = malloc(sizeof(struct var_head *) * 256);
++		AN(var_list);
++		for (int i = 0 ; i < var_list_sz; i++) {
++			var_list[i] = malloc(sizeof(struct var_head));
++			vh_init(var_list[i]);
++		}
+ 	}
++	AZ(pthread_mutex_unlock(&var_list_mtx));
+ 	return 0;
+ }
+ 
+-static struct var_head * get_vh(struct sess *sp) {
++static struct var_head *
++get_vh(const struct vrt_ctx *ctx)
++{
+ 	struct var_head *vh;
++
+ 	AZ(pthread_mutex_lock(&var_list_mtx));
+-	while (var_list_sz <= sp->id) {
++	while (var_list_sz <= ctx->req->sp->fd) {
+ 		int ns = var_list_sz*2;
+ 		/* resize array */
+ 		var_list = realloc(var_list, ns * sizeof(struct var_head *));
+@@ -109,160 +127,228 @@ static struct var_head * get_vh(struct sess *sp) {
+ 		assert(var_list_sz == ns);
+ 		AN(var_list);
+ 	}
+-	vh = var_list[sp->id];
++	vh = var_list[ctx->req->sp->fd];
+ 
+-	if (vh->xid != sp->xid) {
+-		vh_clear(vh);
++	if (vh->vxid != ctx->req->sp->vxid) {
+ 		vh_init(vh);
+-		vh->xid = sp->xid;
++		vh->vxid = ctx->req->sp->vxid;
+ 	}
+ 	AZ(pthread_mutex_unlock(&var_list_mtx));
+ 	return vh;
+ }
+ 
+-void
+-vmod_set(struct sess *sp, const char *name, const char *value)
+-{
+-	vmod_set_string(sp, name, value);
+-}
+-
+-const char *
+-vmod_get(struct sess *sp, const char *name)
++VCL_VOID
++vmod_set(const struct vrt_ctx *ctx, VCL_STRING name, VCL_STRING value)
+ {
+-	return vmod_get_string(sp, name);
++	vmod_set_string(ctx, name, value);
+ }
+ 
+-void
+-vmod_set_string(struct sess *sp, const char *name, const char *value)
++VCL_STRING
++vmod_get(const struct vrt_ctx *ctx, VCL_STRING name)
+ {
+-	struct var *v;
+-	v = vh_get_var_alloc(get_vh(sp), name, sp);
+-	v->type = STRING;
+-	v->value.STRING = WS_Dup(sp->ws, value);
++	return vmod_get_string(ctx, name);
+ }
+ 
+-const char *
+-vmod_get_string(struct sess *sp, const char *name)
++VCL_VOID
++vmod_unset(const struct vrt_ctx *ctx, VCL_STRING name)
+ {
+-	struct var *v;
+-	v = vh_get_var(get_vh(sp), name);
++    struct var *v;
++    if (name == NULL)
++        return;
++    v = vh_get_var(get_vh(ctx), name);
+ 
+-	if (!v)
+-		return NULL;
+-	return (v->value.STRING);
+ }
+ 
+-void
+-vmod_set_int(struct sess *sp, const char *name, int value)
++VCL_VOID
++vmod_set_string(const struct vrt_ctx *ctx, VCL_STRING name, VCL_STRING value)
+ {
+ 	struct var *v;
+-	v = vh_get_var_alloc(get_vh(sp), name, sp);
+-	v->type = INT;
+-	v->value.INT = value;
+-}
+ 
+-int
+-vmod_get_int(struct sess *sp, const char *name)
+-{
+-	struct var *v;
+-
+-	v = vh_get_var(get_vh(sp), name);
+-
+-	if (!v)
+-		return 0;
+-	return (v->value.INT);
++	if (name == NULL)
++		return;
++	v = vh_get_var_alloc(get_vh(ctx), name, ctx);
++	AN(v);
++	v->type = STRING;
++	if (value == NULL)
++		value = "";
++	v->value.STRING = WS_Copy(ctx->ws, value, -1);
+ }
+ 
+-void
+-vmod_set_real(struct sess *sp, const char *name, double value)
++VCL_STRING
++vmod_get_string(const struct vrt_ctx *ctx, VCL_STRING name)
+ {
+ 	struct var *v;
+-	v = vh_get_var_alloc(get_vh(sp), name, sp);
+-	v->type = REAL;
+-	v->value.REAL = value;
++	if (name == NULL)
++		return (NULL);
++	v = vh_get_var(get_vh(ctx), name);
++	if (!v || v->type != STRING)
++		return NULL;
++	return (v->value.STRING);
+ }
+ 
+-double
+-vmod_get_real(struct sess *sp, const char *name)
+-{
+-	struct var *v;
+-
+-	v = vh_get_var(get_vh(sp), name);
+ 
+-	if (!v)
+-		return 0.;
+-	return (v->value.REAL);
++#define VMOD_SET_X(vcl_type_u, vcl_type_l, ctype) \
++VCL_VOID \
++vmod_set_##vcl_type_l(const struct vrt_ctx *ctx, const char *name, ctype value) \
++{ \
++	struct var *v; \
++	if (name == NULL) \
++		return; \
++	v = vh_get_var_alloc(get_vh(ctx), name, ctx); \
++	AN(v); \
++	v->type = vcl_type_u; \
++	v->value.vcl_type_u = value; \
+ }
+ 
+-void
+-vmod_set_duration(struct sess *sp, const char *name, double value)
+-{
+-	struct var *v;
+-	v = vh_get_var_alloc(get_vh(sp), name, sp);
+-	v->type = DURATION;
+-	v->value.DURATION = value;
++VMOD_SET_X(INT, int, VCL_INT)
++VMOD_SET_X(REAL, real, VCL_REAL)
++VMOD_SET_X(DURATION, duration, VCL_DURATION)
++VMOD_SET_X(BOOL, bool, unsigned)
++
++#define VMOD_GET_X(vcl_type_u, vcl_type_l, ctype) \
++ctype \
++vmod_get_##vcl_type_l(const struct vrt_ctx *ctx, const char *name) \
++{ \
++	struct var *v; \
++\
++	if (name == NULL) \
++		return 0; \
++	v = vh_get_var(get_vh(ctx), name); \
++\
++	if (!v || v->type != vcl_type_u) \
++		return 0; \
++	return (v->value.vcl_type_u); \
+ }
+ 
+-double
+-vmod_get_duration(struct sess *sp, const char *name)
+-{
+-	struct var *v;
+-
+-	v = vh_get_var(get_vh(sp), name);
+-
+-	if (!v)
+-		return 0;
+-	return (v->value.DURATION);
+-}
++VMOD_GET_X(INT, int, VCL_INT)
++VMOD_GET_X(REAL, real, VCL_REAL)
++VMOD_GET_X(DURATION, duration, VCL_DURATION)
++VMOD_GET_X(BOOL, bool, unsigned)
+ 
+-void vmod_clear(struct sess *sp)
++VCL_VOID
++vmod_clear(const struct vrt_ctx *ctx)
+ {
+ 	struct var_head *vh;
+-	vh = get_vh(sp);
+-	vh_clear(vh);
++	vh = get_vh(ctx);
+ 	vh_init(vh);
+ }
+ 
+-void
+-vmod_global_set(struct sess *sp, const char *name, const char *value)
++VCL_VOID
++vmod_global_set(const struct vrt_ctx *ctx, VCL_STRING name, VCL_STRING value)
+ {
+ 	struct var *v;
+ 
++	if (name == NULL)
++		return;
++
+ 	AZ(pthread_mutex_lock(&var_list_mtx));
+ 	VTAILQ_FOREACH(v, &global_vars, list) {
+-		if (v->name && strcmp(v->name, name) == 0)
++		CHECK_OBJ_NOTNULL(v, VAR_MAGIC);
++		AN(v->name);
++		if (strcmp(v->name, name) == 0)
+ 			break;
+ 	}
+-	if (v)
++	if (v) {
+ 		VTAILQ_REMOVE(&global_vars, v, list);
+-	else
+-		v = (struct var*)calloc(1, sizeof(struct var));
++		free(v->name);
++		v->name = NULL;
++	} else
++		ALLOC_OBJ(v, VAR_MAGIC);
+ 	AN(v);
+-	free(v->name);
+ 	v->name = strdup(name);
+ 	AN(v->name);
+ 	VTAILQ_INSERT_HEAD(&global_vars, v, list);
+ 	if (v->type == STRING)
+ 		free(v->value.STRING);
++	v->value.STRING = NULL;
+ 	v->type = STRING;
+-	v->value.STRING = strdup(value);
++	if (value != NULL)
++		v->value.STRING = strdup(value);
+ 
+ 	AZ(pthread_mutex_unlock(&var_list_mtx));
+ }
+ 
+-const char *
+-vmod_global_get(struct sess *sp, const char *name)
++VCL_STRING
++vmod_global_get(const struct vrt_ctx *ctx, VCL_STRING name)
+ {
+ 	struct var *v;
++	const char *r = NULL;
+ 
+ 	AZ(pthread_mutex_lock(&var_list_mtx));
+ 	VTAILQ_FOREACH(v, &global_vars, list) {
+-		if (v->name && strcmp(v->name, name) == 0)
++		CHECK_OBJ_NOTNULL(v, VAR_MAGIC);
++		AN(v->name);
++		if (strcmp(v->name, name) == 0)
+ 			break;
+ 	}
++	if (v && v->value.STRING != NULL) {
++		r = WS_Copy(ctx->ws, v->value.STRING, -1);
++		AN(r);
++	}
+ 	AZ(pthread_mutex_unlock(&var_list_mtx));
+-	if (!v)
+-		return NULL;
+-	return(v->value.STRING);
++	return(r);
++}
++
++#define VMOD_GLOBAL_SET_X(vcl_type_u, vcl_type_l, ctype)			    \
++void									                                \
++vmod_global_set_##vcl_type_l(const struct vrt_ctx *ctx, const char *name, ctype value)	\
++{									                                    \
++	struct var *v;				                                        \
++	if (name == NULL)				                                    \
++		return;				                                            \
++	AZ(pthread_mutex_lock(&var_list_mtx));				                \
++	VTAILQ_FOREACH(v, &global_vars, list) {				                \
++		CHECK_OBJ_NOTNULL(v, VAR_MAGIC);				                \
++		AN(v->name);				                                    \
++		if (strcmp(v->name, name) == 0)				                    \
++			break;				                                        \
++	}				                                                    \
++	if (v) {				                                            \
++		VTAILQ_REMOVE(&global_vars, v, list);				            \
++		free(v->name);				                                    \
++		v->name = NULL;				                                    \
++	} else				                                                \
++		ALLOC_OBJ(v, VAR_MAGIC);				                        \
++	AN(v);				                                                \
++	v->name = strdup(name);				                                \
++	AN(v->name);				                                        \
++	VTAILQ_INSERT_HEAD(&global_vars, v, list);				            \
++	if (v->type == STRING)				                                \
++		free(v->value.STRING);				                            \
++	v->value.vcl_type_u = value;				                        \
++	v->type = vcl_type_u;				                                \
++	AZ(pthread_mutex_unlock(&var_list_mtx));				            \
++}
++
++VMOD_GLOBAL_SET_X(INT, int, VCL_INT)
++VMOD_GLOBAL_SET_X(REAL, real, VCL_REAL)
++VMOD_GLOBAL_SET_X(DURATION, duration, VCL_DURATION)
++VMOD_GLOBAL_SET_X(BOOL, bool, unsigned)
++
++#define VMOD_GLOBAL_GET_X(vcl_type_u, vcl_type_l, ctype)			    \
++ctype									                        \
++vmod_global_get_##vcl_type_l(const struct vrt_ctx *ctx, const char *name)	\
++{									                            \
++	struct var *v;							                    \
++	ctype ret = 0;					                            \
++	if (name == NULL)						                    \
++		return (0);						                        \
++	AZ(pthread_mutex_lock(&var_list_mtx));                      \
++	VTAILQ_FOREACH(v, &global_vars, list) {                     \
++		CHECK_OBJ_NOTNULL(v, VAR_MAGIC);                        \
++		AN(v->name);                                            \
++		if (strcmp(v->name, name) == 0)                         \
++			break;                                              \
++	}                                                           \
++									                            \
++	if (v && v->type == vcl_type_u) 				            \
++		ret = v->value.vcl_type_u;                              \
++    AZ(pthread_mutex_unlock(&var_list_mtx));                    \
++	return ret;					                                \
+ }
+ 
++VMOD_GLOBAL_GET_X(INT, int, VCL_INT)
++VMOD_GLOBAL_GET_X(REAL, real, VCL_REAL)
++VMOD_GLOBAL_GET_X(DURATION, duration, VCL_DURATION)
++VMOD_GLOBAL_GET_X(BOOL, bool, unsigned)
++
+diff --git a/libvmod-var-4.0/src/vmod_var.vcc b/libvmod-var-4.0/src/vmod_var.vcc
+index 1b0e0db..90911ef 100644
+--- a/libvmod-var-4.0/src/vmod_var.vcc
++++ b/libvmod-var-4.0/src/vmod_var.vcc
+@@ -1,18 +1,43 @@
+-Module var
+-Init init_function
++$Module var 3 Variable VMOD for Varnish
++$Init init_function
+ # Shortcut for strings
+-Function VOID set(STRING, STRING)
+-Function STRING get(STRING)
++$Function VOID set(STRING, STRING)
++$Function STRING get(STRING)
+ 
+-Function VOID global_set(STRING, STRING)
+-Function STRING global_get(STRING)
++# Unset for any
++$Function VOID unset(STRING)
+ 
+-Function VOID set_int(STRING, INT)
+-Function INT get_int(STRING)
+-Function VOID set_string(STRING, STRING)
+-Function STRING get_string(STRING)
+-Function VOID set_real(STRING, REAL)
+-Function REAL get_real(STRING)
+-Function VOID set_duration(STRING, DURATION)
+-Function DURATION get_duration(STRING)
+-Function VOID clear()
++$Function VOID global_set(STRING, STRING)
++$Function STRING global_get(STRING)
++
++$Function VOID global_set_int(STRING, INT)
++$Function INT global_get_int(STRING)
++$Function VOID global_set_real(STRING, REAL)
++$Function REAL global_get_real(STRING)
++$Function VOID global_set_duration(STRING, DURATION)
++$Function DURATION global_get_duration(STRING)
++$Function VOID global_set_bool(STRING, BOOL)
++$Function BOOL global_get_bool(STRING)
++
++$Function VOID set_int(STRING, INT)
++$Function INT get_int(STRING)
++$Function VOID set_string(STRING, STRING)
++$Function VOID set_string_allow_null(STRING, STRING)
++$Function VOID set_string_literal(STRING, STRING)
++$Function STRING get_string(STRING)
++$Function VOID set_real(STRING, REAL)
++$Function REAL get_real(STRING)
++$Function VOID set_duration(STRING, DURATION)
++$Function DURATION get_duration(STRING)
++$Function VOID set_bool(STRING, BOOL)
++$Function BOOL get_bool(STRING)
++$Function BOOL and_or_set_bool(STRING, BOOL)
++$Function BOOL or_or_set_bool(STRING, BOOL)
++
++$Function VOID new_string_set(STRING)
++$Function INT string_set_is_empty(STRING)
++$Function VOID add_to_string_set(STRING, STRING)
++$Function VOID del_from_string_set(STRING, STRING)
++$Function STRING get_string_set_as_csv(STRING)
++
++$Function VOID clear()
+-- 
+2.7.4
+
