@@ -48,4 +48,5 @@ LOCK(vxid)
 LOCK(waiter)
 LOCK(wq)
 LOCK(wstat)
+LOCK(cache_backends)
 /*lint -restore */

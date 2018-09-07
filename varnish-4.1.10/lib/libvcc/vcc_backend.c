@@ -43,10 +43,12 @@
 
 static void
 Emit_Sockaddr(struct vcc *tl, const struct token *t_host,
-    const struct token *t_port)
+    const struct token *t_port, unsigned resolve)
 {
 	const char *ipv4, *ipv4a, *ipv6, *ipv6a, *pa;
 	char buf[256];
+	char *hop = buf;
+	char *pop = "80";
 
 	AN(t_host->dec);
 
@@ -54,20 +56,32 @@ Emit_Sockaddr(struct vcc *tl, const struct token *t_host,
 		bprintf(buf, "%s %s", t_host->dec, t_port->dec);
 	else
 		bprintf(buf, "%s", t_host->dec);
-	Resolve_Sockaddr(tl, buf, "80",
-	    &ipv4, &ipv4a, &ipv6, &ipv6a, &pa, 2, t_host, "Backend host");
-	ERRCHK(tl);
-	if (ipv4 != NULL) {
-		Fb(tl, 0, "\t.ipv4_suckaddr = (const struct suckaddr *)%s,\n",
-		    ipv4);
-		Fb(tl, 0, "\t.ipv4_addr = \"%s\",\n", ipv4a);
+	if (resolve) {
+		Resolve_Sockaddr(tl, buf, pop,
+		    &ipv4, &ipv4a, &ipv6, &ipv6a, &pa, 2, t_host, "Backend host");
+		ERRCHK(tl);
+		if (ipv4 != NULL) {
+			Fb(tl, 0, "\t.ipv4_suckaddr = (const struct suckaddr *)%s,\n",
+			    ipv4);
+			Fb(tl, 0, "\t.ipv4_addr = \"%s\",\n", ipv4a);
+		}
+		if (ipv6 != NULL) {
+			Fb(tl, 0, "\t.ipv6_suckaddr = (const struct suckaddr *)%s,\n",
+			    ipv6);
+			Fb(tl, 0, "\t.ipv6_addr = \"%s\",\n", ipv6a);
+		}
+		Fb(tl, 0, "\t.port = \"%s\",\n", pa);
 	}
-	if (ipv6 != NULL) {
-		Fb(tl, 0, "\t.ipv6_suckaddr = (const struct suckaddr *)%s,\n",
-		    ipv6);
-		Fb(tl, 0, "\t.ipv6_addr = \"%s\",\n", ipv6a);
+	else {
+		/* RevSW: Use an invalid IPv4 sockaddress (we need a non-zero
+		ipv4_suckaddr in rev_dns).
+		However, save the host and port for later resolution. */
+		Emit_Invalid_Sockaddr(tl);
+		Fb(tl, 0, "\t.ipv4_suckaddr = (const struct suckaddr *)(const void*)sockaddr_invalid4,\n");
+		Fb(tl, 0, "\t.ipv6_suckaddr = (const struct suckaddr *)(const void*)sockaddr_invalid6,\n");
+		Fb(tl, 0, "\t.host = \"%s\",\n", hop != NULL ? hop : t_host->dec);
+		Fb(tl, 0, "\t.port = \"%s\",\n", pop != NULL ? pop : t_port->dec);
 	}
-	Fb(tl, 0, "\t.port = \"%s\",\n", pa);
 }
 
 /*--------------------------------------------------------------------
@@ -297,6 +311,7 @@ vcc_ParseHostDef(struct vcc *tl, const struct token *t_be, const char *vgcname)
 	char *p;
 	unsigned u;
 	double t;
+	unsigned resolve_host = 1;
 
 	fs = vcc_FldSpec(tl,
 	    "!host",
@@ -307,6 +322,7 @@ vcc_ParseHostDef(struct vcc *tl, const struct token *t_be, const char *vgcname)
 	    "?between_bytes_timeout",
 	    "?probe",
 	    "?max_connections",
+	    "?preresolve_dns",
 	    NULL);
 
 	SkipToken(tl, '{');
@@ -401,11 +417,16 @@ vcc_ParseHostDef(struct vcc *tl, const struct token *t_be, const char *vgcname)
 			VSB_printf(tl->sb, " at\n");
 			vcc_ErrWhere(tl, tl->t);
 			return;
+		} else if (vcc_IdIs(t_field, "preresolve_dns")) {
+			// RevSW: dynamic DNS resolution instead of compiled-in
+			u = vcc_UintVal(tl);
+			ERRCHK(tl);
+			SkipToken(tl, ';');
+			resolve_host = u;
 		} else {
 			ErrInternal(tl);
 			return;
 		}
-
 	}
 
 	vcc_FieldsOk(tl, fs);
@@ -413,7 +434,7 @@ vcc_ParseHostDef(struct vcc *tl, const struct token *t_be, const char *vgcname)
 
 	/* Check that the hostname makes sense */
 	assert(t_host != NULL);
-	Emit_Sockaddr(tl, t_host, t_port);
+	Emit_Sockaddr(tl, t_host, t_port, resolve_host);
 	ERRCHK(tl);
 
 	ExpectErr(tl, '}');

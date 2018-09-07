@@ -141,11 +141,11 @@ cnt_deliver(struct worker *wrk, struct req *req)
 
 	if (req->is_hit)
 		http_PrintfHeader(req->resp,
-		    "X-Varnish: %u %u", VXID(req->vsl->wid),
+		    "X-Rev-Id: %u %u", VXID(req->vsl->wid),
 		    ObjGetXID(wrk, req->objcore));
 	else
 		http_PrintfHeader(req->resp,
-		    "X-Varnish: %u", VXID(req->vsl->wid));
+		    "X-Rev-Id: %u", VXID(req->vsl->wid));
 
 	/*
 	 * We base Age calculation upon the last timestamp taken during
@@ -158,7 +158,7 @@ cnt_deliver(struct worker *wrk, struct req *req)
 	http_PrintfHeader(req->resp, "Age: %.0f",
 	    floor(fmax(0., req->t_prev - req->objcore->exp.t_origin)));
 
-	http_SetHeader(req->resp, "Via: 1.1 varnish-v4");
+	http_SetHeader(req->resp, "Via: 1.1 rev-cache");
 
 	if (cache_param->http_gzip_support &&
 	    ObjCheckFlag(req->wrk, req->objcore, OF_GZIPED) &&
@@ -264,7 +264,7 @@ cnt_synth(struct worker *wrk, struct req *req)
 	h = req->resp;
 	http_TimeHeader(h, "Date: ", now);
 	http_SetHeader(h, "Server: Varnish");
-	http_PrintfHeader(req->resp, "X-Varnish: %u", VXID(req->vsl->wid));
+	http_PrintfHeader(req->resp, "X-Rev-Id: %u", VXID(req->vsl->wid));
 	http_PutResponse(h, "HTTP/1.1", req->err_code, req->err_reason);
 
 	synth_body = VSB_new_auto();
@@ -598,7 +598,7 @@ cnt_pipe(struct worker *wrk, struct req *req)
 
 	HTTP_Setup(bo->bereq, bo->ws, bo->vsl, SLT_BereqMethod);
 	http_FilterReq(bo->bereq, req->http, 0);	// XXX: 0 ?
-	http_PrintfHeader(bo->bereq, "X-Varnish: %u", VXID(req->vsl->wid));
+	http_PrintfHeader(bo->bereq, "X-Rev-Id: %u", VXID(req->vsl->wid));
 	http_ForceHeader(bo->bereq, H_Connection, "close");
 
 	VCL_pipe_method(req->vcl, wrk, req, bo, NULL);

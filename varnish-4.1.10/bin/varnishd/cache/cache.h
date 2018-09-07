@@ -124,6 +124,7 @@ struct vsb;
 struct waitinglist;
 struct worker;
 struct v1l;
+struct rev_vmod;
 
 #define DIGEST_LEN		32
 
@@ -163,6 +164,19 @@ struct ws {
 	char			*f;		/* (F)ree/front pointer */
 	char			*r;		/* (R)eserved length */
 	char			*e;		/* (E)nd of buffer */
+};
+
+/*--------------------------------------------------------------------
+ * RevSW: Per VMOD data. It is copied between req and bereq.
+ */
+
+typedef void* (*rev_vmod_dup_data_func)(struct ws *ws, void *data);
+
+struct rev_vmod {
+    unsigned		        magic;
+#define REV_VMOD_MAGIC		0x631cb1c3
+    void                    *data;
+    rev_vmod_dup_data_func  dup_data_func;
 };
 
 /*--------------------------------------------------------------------
@@ -517,6 +531,8 @@ struct busyobj {
 
 	uint8_t			digest[DIGEST_LEN];
 	struct vrt_privs	privs[1];
+	/* RevSW: revvar VMOD data, copied from req->vmod_revvar */
+	struct rev_vmod vmod_revvar;
 };
 
 
@@ -612,6 +628,9 @@ struct req {
 
 	/* Temporary accounting */
 	struct acct_req		acct;
+
+	/* RevSW: revvar VMOD data */
+	struct rev_vmod vmod_revvar;
 };
 
 /*--------------------------------------------------------------------

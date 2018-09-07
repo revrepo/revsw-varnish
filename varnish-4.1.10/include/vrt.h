@@ -61,6 +61,7 @@ struct vmod;
 struct vsb;
 struct vsl_log;
 struct ws;
+struct cli;
 
 /***********************************************************************
  * This is the central definition of the mapping from VCL types to
@@ -166,6 +167,7 @@ extern const void * const vrt_magic_string_unset;
 	rigid char			*vcl_name;		\
 	rigid char			*ipv4_addr;		\
 	rigid char			*ipv6_addr;		\
+	rigid char			*host;			\
 	rigid char			*port;			\
 	rigid char			*hosthdr;		\
 	double				connect_timeout;	\
