@@ -1,9 +1,9 @@
 BUILD_MINOR?=1
 DEBSINSIDE=debs
-DEBS=/home/jenkins/workspace/Proxy_Varnish_Build/$(DEBSINSIDE)
+DIR=$(shell pwd)
+DEBS=$(DIR)/$(DEBSINSIDE)
 MAKEF=$(word 1,$(MAKEFILE_LIST))
 DATE_STAMP=$(shell date "+%a, %d %b %Y %H:%M:%S %z")
-DIR=$(shell pwd)
 DOCKER_BIN=docker
 # set it to -ti when doing non-Jenkins build
 INTERACTIVE?=
