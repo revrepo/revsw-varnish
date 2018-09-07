@@ -1,0 +1,35 @@
+From 51a4b3830b3707181e952193ce4ad61d3f007bd5 Mon Sep 17 00:00:00 2001
+From: djkobraz <djkobraz@gmail.com>
+Date: Thu, 24 Aug 2017 02:43:48 +0300
+Subject: [PATCH 58/63] java8 updated docker file
+
+---
+ Dockerfile | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/Dockerfile b/Dockerfile
+index 8a06004..409eda3 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -3,8 +3,16 @@ FROM ubuntu:14.04
+ MAINTAINER Igor Kukushkin <igor@pbne.mygbiz.com>
+ 
+ #ADD .pbuilderrc /tmp/.pbuilderrc
+-RUN apt-get install software-properties-common python-software-properties
+-RUN add-apt-repository ppa:webupd8team/java && apt-get update && apt-get install oracle-java8-installer
++RUN apt-get update && apt-get -y install software-properties-common python-software-properties
++RUN \
++  echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | debconf-set-selections && \
++  add-apt-repository -y ppa:webupd8team/java && \
++  apt-get update && \
++  apt-get install -y oracle-java8-installer && \
++  rm -rf /var/lib/apt/lists/* && \
++  rm -rf /var/cache/oracle-jdk8-installer
++ENV JAVA_HOME /usr/lib/jvm/java-8-oracle
++
+ RUN apt-get update && apt-get -y install build-essential pbuilder autoconf automake debhelper dh-virtualenv debootstrap devscripts libtool pkg-config nano git equivs \
+ binfmt-support clang clang-3.4 fontconfig-config fonts-dejavu-core geoip-bin \
+   geoip-database libclang-common-3.4-dev libclang1-3.4 libexpat1-dev \
+-- 
+2.7.4
+

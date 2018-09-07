@@ -1,0 +1,141 @@
+From 86796ffc3a8fb91e47a6a9c0875ec2e36151b435 Mon Sep 17 00:00:00 2001
+From: sorinrevsw <sorin@revsw.com>
+Date: Fri, 23 Jan 2015 16:15:18 +0200
+Subject: [PATCH 35/63] Bringing 'querystring' VMOD makefiles in sync with the
+ other VMODs.
+
+---
+ libvmod-querystring-4.0/configure.ac    | 66 +++++----------------------------
+ libvmod-querystring-4.0/src/Makefile.am | 15 ++++----
+ 2 files changed, 17 insertions(+), 64 deletions(-)
+
+diff --git a/libvmod-querystring-4.0/configure.ac b/libvmod-querystring-4.0/configure.ac
+index 1a4f396..d646273 100644
+--- a/libvmod-querystring-4.0/configure.ac
++++ b/libvmod-querystring-4.0/configure.ac
+@@ -87,68 +87,22 @@ if test "x$enable_logging" != "xno"; then
+ 	AC_SUBST([DEFINE_LOGGING], [-DQS_ENABLE_LOGGING])
+ fi
+ 
+-# Varnish source tree
+-AC_ARG_VAR([VARNISHSRC], [path to Varnish source tree (mandatory)])
+-if test "x$VARNISHSRC" = x; then
+-	AC_MSG_ERROR([No Varnish source tree specified])
+-fi
++PKG_CHECK_MODULES([libvarnishapi], [varnishapi])
++
++# Varnish include files tree
++VARNISH_VMOD_INCLUDES
++VARNISH_VMOD_DIR
++VARNISH_VMODTOOL
+ 
+-VARNISHSRC=`cd $VARNISHSRC && pwd`
+-Varnish_Version_MAJOR=
++AC_PATH_PROG([VARNISHTEST], [varnishtest])
++AC_PATH_PROG([VARNISHD], [varnishd], [],
++    [$PATH:$PATH:`pkg-config varnishapi --variable=sbindir`])
+ 
+-# Is it a Varnish 3 or 4 source tree ?
+-AC_CHECK_FILE([$VARNISHSRC/lib/libvmod_std/vmod.py], [Varnish_Version_MAJOR=3])
+-AC_CHECK_FILE([$VARNISHSRC/lib/libvcc/vmodtool.py],  [Varnish_Version_MAJOR=4])
++Varnish_Version_MAJOR=4
+ 
+ AC_SUBST([VARNISH_MAJOR], [$Varnish_Version_MAJOR])
+ AC_SUBST([DEFINE_MAJOR], [-DVARNISH_MAJOR=$Varnish_Version_MAJOR])
+ 
+-# Can we build a VMOD with VARNISHSRC ?
+-AS_CASE(["$Varnish_Version_MAJOR"],
+-	[4], [AC_SUBST([VMODTOOL], ['$(VARNISHSRC)/lib/libvcc/vmodtool.py'])],
+-	[3], [AC_SUBST([VMODTOOL], ['$(VARNISHSRC)/lib/libvmod_std/vmod.py'])],
+-	     [AC_MSG_FAILURE(["$VARNISHSRC" is not a Varnish source directory])]
+-)
+-
+-# Check that varnishtest is built in the varnish source directory
+-AC_CHECK_FILE([$VARNISHSRC/bin/varnishtest/varnishtest],
+-	[],
+-	[AC_MSG_FAILURE([Could not find "$VARNISHSRC/bin/varnishtest/varnishtest". Please build your varnish source directory])]
+-)
+-
+-# Check vanish ABI version
+-AC_CHECK_FILE([$VARNISHSRC/include/vmod_abi.h],
+-	[
+-		AC_MSG_CHECKING([varnish ABI version])
+-		[VMOD_ABI_Version=`cut -d ' ' -f 4 "$VARNISHSRC/include/vmod_abi.h"`]
+-		AC_MSG_RESULT([$VMOD_ABI_Version])
+-	],
+-	[
+-		[VMOD_ABI_Version=3.0.0]
+-		AC_MSG_NOTICE([Could not find "$VARNISHSRC/include/vmod_abi.h". Assuming varnish 3.0.0 ABI version])
+-	]
+-)
+-
+-AS_CASE([`cat $VARNISHSRC/include/vmod_abi.h 2>/dev/null`],
+-	[*4.0.0*], [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_4_0_0])],
+-	[*3.0.6*], [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_3_0_6])],
+-	[*3.0.5*], [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_3_0_5])],
+-	[*3.0.4*], [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_3_0_4])],
+-	[*3.0.3*], [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_3_0_3])],
+-	[*3.0.2*], [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_3_0_2])],
+-	[*3.0.1*], [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_3_0_1])],
+-	           [AC_SUBST([DEFINE_ABI], [-DHAVE_VARNISH_3_0_0])]
+-)
+-
+-# vmod installation dir
+-AC_ARG_VAR([VMODDIR], [vmod installation directory @<:@LIBDIR/varnish/vmods@:>@])
+-if test "x$VMODDIR" = x; then
+-	VMODDIR=`pkg-config --variable=vmoddir varnishapi`
+-	if test "x$VMODDIR" = x; then
+-		AC_MSG_FAILURE([Could not determine vmod installation directory])
+-	fi
+-fi
+-
+ AC_CONFIG_FILES([
+ 	Makefile
+ 	src/Makefile
+diff --git a/libvmod-querystring-4.0/src/Makefile.am b/libvmod-querystring-4.0/src/Makefile.am
+index 5845f09..510f32c 100644
+--- a/libvmod-querystring-4.0/src/Makefile.am
++++ b/libvmod-querystring-4.0/src/Makefile.am
+@@ -28,10 +28,9 @@
+ # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ # OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+-AM_CFLAGS = @DEFINE_MAJOR@ @DEFINE_ABI@ @DEFINE_LOGGING@
+-INCLUDES = -I$(VARNISHSRC)/include -I$(VARNISHSRC)/bin/varnishd -I$(VARNISHSRC)
++AM_CPPFLAGS = @VMOD_INCLUDES@
+ 
+-vmoddir = $(VMODDIR)
++vmoddir = @VMOD_DIR@
+ vmod_LTLIBRARIES = libvmod_querystring.la
+ 
+ libvmod_querystring_la_LDFLAGS = -module -export-dynamic -avoid-version -shared
+@@ -42,15 +41,15 @@ libvmod_querystring_la_SOURCES = \
+ 	vmod_querystring.c \
+ 	vmod_querystring.h
+ 
+-vcc_if.c vcc_if.h vmod_querystring.man.rst: *.vcc ../README.rst
++vcc_if.c vcc_if.h vmod_querystring.man.rst: @VMODTOOL@ $(top_srcdir)/src/vmod_querystring.vcc ../README.rst
+ 	cp ../README.rst vmod_querystring.man.rst
+-	@PYTHON@ @VMODTOOL@ $(top_srcdir)/src/vmod_querystring@VARNISH_MAJOR@.vcc
++	@VMODTOOL@ $(top_srcdir)/src/vmod_querystring@VARNISH_MAJOR@.vcc
+ 
+ VMOD_TESTS = tests/*.vtc
+ .PHONY: $(VMOD_TESTS)
+ 
+-tests/*.vtc:
+-	$(VARNISHSRC)/bin/varnishtest/varnishtest -Dvarnishd=$(VARNISHSRC)/bin/varnishd/varnishd -Dvmod_topbuild=$(abs_top_builddir) $@
++$(top_srcdir)/src/tests/*.vtc:
++	@VARNISHTEST@ -Dvarnishd=@VARNISHD@ -Dvmod_topbuild=$(abs_top_builddir) $@
+ 
+ check: $(VMOD_TESTS)
+ 
+@@ -58,5 +57,5 @@ EXTRA_DIST = \
+ 	vmod_querystring.vcc \
+ 	$(VMOD_TESTS)
+ 
+-CLEANFILES = $(builddir)/vcc_if.c $(builddir)/vcc_if.h
++CLEANFILES = $(builddir)/vcc_if.c $(builddir)/vcc_if.h $(builddir)/vmod_querystring.man.rst
+ 
+-- 
+2.7.4
+

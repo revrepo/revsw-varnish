@@ -1,0 +1,25 @@
+Contributing to Varnish Cache
+=============================
+
+To contribute to Varnish, read
+https://www.varnish-cache.org/trac/wiki/Contributing as a starting
+point and follow relevant parts linked there.
+
+Varnish Cache is developed with Git hosted on our own infrastructure.
+
+Official development tree is here:
+
+    git://git.varnish-cache.org/varnish-cache
+
+Patches can be sent to varnish-dev@varnish-cache.org.
+
+
+Github pull requests
+--------------------
+
+Pull requests are handled like other tickets.
+
+Trivial pull requests (fix typos, etc) are welcomed, but they will be commited
+by a core team member and the author credited in the commit message.
+
+Pull requests outside of this scope will be closed without review.

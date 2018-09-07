@@ -1,0 +1,11 @@
+SUBDIRS += varnishadm
+SUBDIRS += varnishd
+SUBDIRS += varnishlog
+SUBDIRS += varnishncsa
+SUBDIRS += varnishtest
+SUBDIRS += varnishstat
+SUBDIRS += varnishhist
+SUBDIRS += varnishtop
+
+TOPDIR = $(CURDIR)/..
+include $(TOPDIR)/Makefile.inc.phk

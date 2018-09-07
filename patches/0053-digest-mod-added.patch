@@ -1,0 +1,57 @@
+From 7e4dd07291a0b2482c5a239133945dd367725f75 Mon Sep 17 00:00:00 2001
+From: djkobraz <djkobraz@gmail.com>
+Date: Tue, 22 Aug 2017 02:41:22 +0300
+Subject: [PATCH 53/63] digest mod added
+
+---
+ varnish4-vmods/debian/rules       | 4 ++++
+ varnish4-vmods/libvmod-digest-4.0 | 1 +
+ 2 files changed, 5 insertions(+)
+ create mode 160000 varnish4-vmods/libvmod-digest-4.0
+
+diff --git a/varnish4-vmods/debian/rules b/varnish4-vmods/debian/rules
+index 62f1b24..601b7fe 100755
+--- a/varnish4-vmods/debian/rules
++++ b/varnish4-vmods/debian/rules
+@@ -17,6 +17,7 @@ override_dh_auto_configure:
+ 	cd libvmod-header-4.0 && ./autogen.sh && CFLAGS="$(LOCAL_CFLAGS)" LDFLAGS="$(LOCAL_LDFLAGS)" ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+ 	cd libvmod-timers-4.0 && ./autogen.sh && CFLAGS="$(LOCAL_CFLAGS)" LDFLAGS="$(LOCAL_LDFLAGS)" ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+ 	cd libvmod-var-4.0 && ./autogen.sh && CFLAGS="$(LOCAL_CFLAGS)" LDFLAGS="$(LOCAL_LDFLAGS)" ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
++	cd libvmod-digest-4.0 && ./autogen.sh && CFLAGS="$(LOCAL_CFLAGS)" LDFLAGS="$(LOCAL_LDFLAGS)" ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+ 
+ override_dh_gencontrol:
+ 	echo "Varnish:ABI=$(VMOD_ABI)" >> debian/substvars
+@@ -35,6 +36,7 @@ override_dh_auto_build:
+ 	$(MAKE) -C libvmod-header-4.0
+ 	$(MAKE) -C libvmod-timers-4.0
+ 	$(MAKE) -C libvmod-var-4.0
++	$(MAKE) -C libvmod-digest-4.0
+ 
+ override_dh_auto_install:
+ 	$(MAKE) -C libvmod-querystring-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish4-modules install
+@@ -44,6 +46,7 @@ override_dh_auto_install:
+ 	$(MAKE) -C libvmod-header-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish4-modules install
+ 	$(MAKE) -C libvmod-timers-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish4-modules install
+ 	$(MAKE) -C libvmod-var-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish4-modules install
++	$(MAKE) -C libvmod-digest-4.0 DESTDIR=$$(pwd)/debian/revsw-varnish4-modules install
+ 
+ override_dh_auto_clean:
+ 	$(MAKE) -C libvmod-querystring-4.0 distclean || true
+@@ -53,6 +56,7 @@ override_dh_auto_clean:
+ 	$(MAKE) -C libvmod-header-4.0 distclean || true
+ 	$(MAKE) -C libvmod-timers-4.0 distclean || true
+ 	$(MAKE) -C libvmod-var-4.0 distclean || true
++	$(MAKE) -C libvmod-digest-4.0 distclean || true
+ 
+ override_dh_strip:
+ 	dh_strip --dbg-package=revsw-varnish4-modules-dbg
+diff --git a/varnish4-vmods/libvmod-digest-4.0 b/varnish4-vmods/libvmod-digest-4.0
+new file mode 160000
+index 0000000..0997854
+--- /dev/null
++++ b/varnish4-vmods/libvmod-digest-4.0
+@@ -0,0 +1 @@
++Subproject commit 09978549a8abb07d84e0492621580f3209378dc3
+-- 
+2.7.4
+

@@ -1,0 +1,337 @@
+From 388ba12fd0b23740eb6b3ec3c50e1f53eff622da Mon Sep 17 00:00:00 2001
+From: vimal gupta <vimal.gupta@techvedika.com>
+Date: Fri, 19 Dec 2014 15:07:33 +0530
+Subject: [PATCH 17/63] updated the timer vmod to work with varnish 4.0.2
+
+---
+ libvmod-timers-4.0/autogen.sh          |  2 +-
+ libvmod-timers-4.0/configure.ac        | 38 +++++++-------------
+ libvmod-timers-4.0/src/Makefile.am     | 29 ++++-----------
+ libvmod-timers-4.0/src/vmod_timers.c   | 64 +++++++++++++++++-----------------
+ libvmod-timers-4.0/src/vmod_timers.vcc | 24 ++++++-------
+ 5 files changed, 63 insertions(+), 94 deletions(-)
+
+diff --git a/libvmod-timers-4.0/autogen.sh b/libvmod-timers-4.0/autogen.sh
+index 9a12ef5..2e1fb89 100755
+--- a/libvmod-timers-4.0/autogen.sh
++++ b/libvmod-timers-4.0/autogen.sh
+@@ -37,8 +37,8 @@ fi
+ 
+ set -ex
+ 
+-aclocal -I m4
+ $LIBTOOLIZE --copy --force
++aclocal -I m4
+ autoheader
+ automake --add-missing --copy --foreign
+ autoconf
+diff --git a/libvmod-timers-4.0/configure.ac b/libvmod-timers-4.0/configure.ac
+index 1f18148..5659612 100644
+--- a/libvmod-timers-4.0/configure.ac
++++ b/libvmod-timers-4.0/configure.ac
+@@ -29,46 +29,32 @@ if test "x$RST2MAN" = "xno"; then
+ fi
+ AM_CONDITIONAL(HAVE_RST2MAN, [test "x$RST2MAN" != "xno"])
+ 
+-# Check for pkg-config
++
++#Check for pkg-config
+ PKG_PROG_PKG_CONFIG
+ 
+ # Checks for header files.
+ AC_HEADER_STDC
+ AC_CHECK_HEADERS([sys/stdlib.h])
+ 
++
++
+ # Check for python
+ AC_CHECK_PROGS(PYTHON, [python3 python3.1 python3.2 python2.7 python2.6 python2.5 python2 python], [AC_MSG_ERROR([Python is needed to build this vmod, please install python.])])
+ 
+-# Varnish source tree
+-AC_ARG_VAR([VARNISHSRC], [path to Varnish source tree (mandatory)])
+-if test "x$VARNISHSRC" = x; then
+-	AC_MSG_ERROR([No Varnish source tree specified])
+-fi
+-VARNISHSRC=`cd $VARNISHSRC && pwd`
+-AC_CHECK_FILE([$VARNISHSRC/include/varnishapi.h],
+-	[],
+-	[AC_MSG_FAILURE(["$VARNISHSRC" is not a Varnish source directory])]
+-)
+-AM_CONDITIONAL(HAVE_VARNISHSRC, [test -n $VARNISHSRC])
+ 
+-# Check that varnishtest is built in the varnish source directory
+-AC_CHECK_FILE([$VARNISHSRC/bin/varnishtest/varnishtest],
+-	[],
+-	[AC_MSG_FAILURE([Can't find "$VARNISHSRC/bin/varnishtest/varnishtest". Please build your varnish source directory])]
+-)
++# Varnish include files tree
++VARNISH_VMOD_INCLUDES
++VARNISH_VMOD_DIR
++VARNISH_VMODTOOL
+ 
+-# vmod installation dir
+-AC_ARG_VAR([VMODDIR], [vmod installation directory @<:@LIBDIR/varnish/vmods@:>@])
+-if test "x$VMODDIR" = x; then
+-	VMODDIR=`pkg-config --variable=vmoddir varnishapi`
+-	if test "x$VMODDIR" = x; then
+-		AC_MSG_FAILURE([Can't determine vmod installation directory])
+-	fi
+-fi
+-AM_CONDITIONAL(HAVE_VMODDIR, [test -n $VMODDIR])
++# Check that varnishtest is built in the varnish source directory
++AC_PATH_PROG([VARNISHTEST], [varnishtest])
++AC_PATH_PROG([VARNISHD], [varnishd])
+ 
+ AC_CONFIG_FILES([
+ 	Makefile
+ 	src/Makefile
+ ])
+ AC_OUTPUT
++                                  
+diff --git a/libvmod-timers-4.0/src/Makefile.am b/libvmod-timers-4.0/src/Makefile.am
+index ec45cf8..c5120c0 100644
+--- a/libvmod-timers-4.0/src/Makefile.am
++++ b/libvmod-timers-4.0/src/Makefile.am
+@@ -1,40 +1,23 @@
+-# if VARNISHSRC is defined on the command-line, use that. Otherwise, build
+-# this the same as the modules that come with varnish (i.e. we're building
+-# within the varnish src dir itself, and $(top_srcdir) is the varnish source).
+-#
+-if HAVE_VARNISHSRC
+-SRC = $(VARNISHSRC)
+-DIR_PREFIX = /
+-else
+-SRC = $(top_srcdir)
+-DIR_PREFIX = lib/libvmod-timers/
+-endif
+-
+-INCLUDES = -I$(SRC)/include -I$(SRC)
+-
+-if HAVE_VMODDIR
+-vmoddir = $(VMODDIR)
+-else
+-vmoddir = $(pkglibdir)/vmods
+-endif
++AM_CPPFLAGS = @VMOD_INCLUDES@
+ 
++vmoddir = @VMOD_DIR@
+ vmod_LTLIBRARIES = libvmod_timers.la
+ 
+-libvmod_timers_la_LDFLAGS = -module -export-dynamic -avoid-version
++libvmod_timers_la_LDFLAGS = -module -export-dynamic -avoid-version -shared
+ 
+ libvmod_timers_la_SOURCES = \
+ 	vcc_if.c \
+ 	vcc_if.h \
+ 	vmod_timers.c
+ 
+-vcc_if.c vcc_if.h: $(SRC)/lib/libvmod_std/vmod.py $(top_srcdir)/$(DIR_PREFIX)src/vmod_timers.vcc
+-	@PYTHON@ $(SRC)/lib/libvmod_std/vmod.py $(top_srcdir)/$(DIR_PREFIX)src/vmod_timers.vcc
++vcc_if.c vcc_if.h: @VMODTOOL@ $(top_srcdir)/src/vmod_timers.vcc
++	@VMODTOOL@ $(top_srcdir)/src/vmod_timers.vcc
+ 
+ VMOD_TESTS = tests/*.vtc
+ .PHONY: $(VMOD_TESTS)
+ 
+ tests/*.vtc:
+-	$(SRC)/bin/varnishtest/varnishtest -Dvarnishd=$(SRC)/bin/varnishd/varnishd -Dvmod_topbuild=$(abs_top_builddir) $@
++	@VARNISHTEST@ -Dvarnishd=@VARNISHD@ -Dvmod_topbuild=$(abs_top_builddir) $@
+ 
+ check: $(VMOD_TESTS)
+ 
+diff --git a/libvmod-timers-4.0/src/vmod_timers.c b/libvmod-timers-4.0/src/vmod_timers.c
+index 766ec56..a06a973 100644
+--- a/libvmod-timers-4.0/src/vmod_timers.c
++++ b/libvmod-timers-4.0/src/vmod_timers.c
+@@ -3,7 +3,7 @@
+ #include <stdio.h>
+ 
+ #include "vrt.h"
+-#include "bin/varnishd/cache.h"
++#include "cache/cache.h"
+ 
+ #include "vcc_if.h"
+ 
+@@ -16,7 +16,7 @@
+ #endif
+ 
+ /*  XXX This is all true for varnish 3.0.3 - the varnish 3 BRANCH is already structured,
+-    differently. Especially the session struct has changed, with more data moving into
++    differently. Ectx->req->specially the session struct has changed, with more data moving into
+     the request struct instead :(
+ 
+     //*************************
+@@ -46,7 +46,7 @@
+ 
+     The fifth number (0.000022888) is the time elapsed from the start of the request
+     processing until we start delivering the object to the client. For all practical
+-    purposes, this number is the backend response time.
++    purposes, this number is the backend rectx->req->sponse time.
+ 
+     The sixth and last number (0.000025988) is the time from we start delivering the
+     object until the request completes.
+@@ -57,12 +57,12 @@
+ 
+     From varnish-3.0.3:./bin/varnishd/cache_center.c:348
+ 
+-    dp = sp->t_resp - sp->t_req;
+-    da = sp->t_end - sp->t_resp;
+-    dh = sp->t_req - sp->t_open;
++    dp = ctx->req->sp->t_rectx->req->sp - ctx->req->sp->t_req;
++    da = ctx->req->sp->t_end - ctx->req->sp->t_rectx->req->sp;
++    dh = ctx->req->sp->t_req - ctx->req->sp->t_open;
+ 
+-    WSL(sp->wrk, SLT_ReqEnd, sp->id, "%u %.9f %.9f %.9f %.9f %.9f",
+-        sp->xid, sp->t_req, sp->t_end, dh, dp, da);
++    WSL(ctx->req->sp->wrk, SLT_ReqEnd, ctx->req->sp->id, "%u %.9f %.9f %.9f %.9f %.9f",
++        ctx->req->sp->xid, ctx->req->sp->t_req, ctx->req->sp->t_end, dh, dp, da);
+ 
+     The session struct is documented in: varnish-3.0.3:./bin/varnishd/cache.h:524
+     Important parts:
+@@ -73,7 +73,7 @@
+         // Timestamps, all on TIM_real() timescale
+         double                  t_open;
+         double                  t_req;
+-        double                  t_resp;
++        double                  t_rectx->req->sp;
+         double                  t_end;
+ 
+ */
+@@ -105,7 +105,7 @@ init_function(struct vmod_priv *priv, const struct VCL_conf *conf)
+ 
+ // Set the multiplication factor
+ void
+-vmod_unit( struct sess *sp, struct vmod_priv *priv, const char *unit ) {
++vmod_unit( const struct vrt_ctx *ctx, struct vmod_priv *priv, const char *unit ) {
+     config_t *cfg   = priv->priv;
+ 
+     cfg->multiplier =
+@@ -121,14 +121,14 @@ vmod_unit( struct sess *sp, struct vmod_priv *priv, const char *unit ) {
+ // **********************
+ 
+ // VCL doesn't let you do math - simple addition function
+-int
+-vmod_add( struct sess *sp, int i, int j ) {
++VCL_INT
++vmod_add( const struct vrt_ctx *ctx, VCL_INT i, VCL_INT j ) {
+     return i + j;
+ }
+ 
+ // VCL doesn't let you do math - simple subtraction function
+-int
+-vmod_subtract( struct sess *sp, int i, int j ) {
++VCL_INT
++vmod_subtract( const struct vrt_ctx *ctx, VCL_INT i, VCL_INT j ) {
+     return i - j;
+ }
+ 
+@@ -137,22 +137,22 @@ vmod_subtract( struct sess *sp, int i, int j ) {
+ // **********************
+ 
+ // Timestamp of when the request started
+-double
+-vmod_req_start( struct sess *sp, struct vmod_priv *priv ) {
+-    return (double) sp->t_req;
++VCL_REAL
++vmod_req_start( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
++    return (double) ctx->req->t_req;
+ }
+ 
+ // Timestamp of when the request started as a string representation.
+ // Varnish will represent the result differently by the type we use in the .vcc
+-double vmod_req_start_as_string() __attribute__((alias("vmod_req_start")));
++VCL_REAL vmod_req_start_as_string() __attribute__((alias("vmod_req_start")));
+ 
+ 
+ // Timestamp of when the request finished
+-double
+-vmod_req_end( struct sess *sp, struct vmod_priv *priv ) {
++VCL_REAL
++vmod_req_end( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
+     config_t *cfg   = priv->priv;
+ 
+-    return (double) sp->t_end;
++    return (double) ctx->req->sp->t_idle;
+ }
+ 
+ // Timestamp of when the request started as a string representation.
+@@ -165,22 +165,22 @@ double vmod_req_end_as_string() __attribute__((alias("vmod_req_end")));
+ // **********************
+ 
+ // Duration of Accept -> Sent to backend.
+-int
+-vmod_req_handle_time( struct sess *sp, struct vmod_priv *priv ) {
++VCL_INT
++vmod_req_handle_time( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
+     config_t *cfg   = priv->priv;
+ 
+-    return (int) ((sp->t_req - sp->t_open) * cfg->multiplier);
++    return (int) ((ctx->req->t_req - ctx->req->sp->t_open) * cfg->multiplier);
+ }
+ 
+ // Duration of Sent to Backend -> First byte.
+-int
+-vmod_req_response_time( struct sess *sp, struct vmod_priv *priv ) {
++VCL_INT
++vmod_req_response_time( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
+     config_t *cfg   = priv->priv;
+ 
+-    // The response may not have been sent yet (say you're calling this
++    // The rectx->req->sponse may not have been sent yet (say you're calling this
+     // from vcl_recv) - Return -1 in that case.
+ 
+-    int rv = (int) ((sp->t_resp - sp->t_req) * cfg->multiplier);
++    int rv = (int) ((ctx->req->t_prev - ctx->req->t_req) * cfg->multiplier);
+     return rv >= 0 ? rv : -1;
+ }
+ 
+@@ -190,13 +190,13 @@ vmod_req_response_time( struct sess *sp, struct vmod_priv *priv ) {
+ // meaning this will always return -1. I'm leaving it here for completeness
+ // sake, and it may become useful if there appears a vcl hook for after last
+ // byte.
+-int
+-vmod_req_delivery_time( struct sess *sp, struct vmod_priv *priv ) {
++VCL_INT
++vmod_req_delivery_time( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
+     config_t *cfg   = priv->priv;
+ 
+-    // The response may not have been sent yet (say you're calling this
++    // The rectx->req->sponse may not have been sent yet (say you're calling this
+     // from vcl_recv) - Return -1 in that case.
+ 
+-    int rv = (int) ((sp->t_end - sp->t_resp) * cfg->multiplier);
++    int rv = (int) ((ctx->req->sp->t_idle - ctx->req->t_prev) * cfg->multiplier);
+     return rv >= 0 ? rv : -1;
+ }
+diff --git a/libvmod-timers-4.0/src/vmod_timers.vcc b/libvmod-timers-4.0/src/vmod_timers.vcc
+index 6f1c106..8ee754f 100644
+--- a/libvmod-timers-4.0/src/vmod_timers.vcc
++++ b/libvmod-timers-4.0/src/vmod_timers.vcc
+@@ -1,12 +1,12 @@
+-Module timers
+-Init init_function
+-Function INT add(INT,INT)
+-Function INT subtract(INT,INT)
+-Function VOID unit(PRIV_VCL,STRING)
+-Function REAL req_start(PRIV_VCL)
+-Function TIME req_start_as_string(PRIV_VCL)
+-Function REAL req_end(PRIV_VCL)
+-Function TIME req_end_as_string(PRIV_VCL)
+-Function INT req_handle_time(PRIV_VCL)
+-Function INT req_response_time(PRIV_VCL)
+-Function INT req_delivery_time(PRIV_VCL)
++$Module timers 3 Varnish timers Module
++$Init init_function
++$Function INT add(INT,INT)
++$Function INT subtract(INT,INT)
++$Function VOID unit(PRIV_VCL,STRING)
++$Function REAL req_start(PRIV_VCL)
++$Function TIME req_start_as_string(PRIV_VCL)
++$Function REAL req_end(PRIV_VCL)
++$Function TIME req_end_as_string(PRIV_VCL)
++$Function INT req_handle_time(PRIV_VCL)
++$Function INT req_response_time(PRIV_VCL)
++$Function INT req_delivery_time(PRIV_VCL)
+-- 
+2.7.4
+

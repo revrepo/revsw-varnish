@@ -3,13 +3,13 @@ Section: web
 Priority: extra
 Maintainer: Sorin Otescu <sorin@revsw.com>
 Build-Depends: debhelper (>= 7), build-essential, python-docutils,
- revsw-libvarnish4api-dev (>= 4.0.3)
-Built-Using: revsw-varnish4 (= 4.0.3)
+ revsw-libvarnish4api-dev (>= 4.1.10)
+Built-Using: revsw-varnish4 (= 4.1.10)
 Standards-Version: 3.8.1
 
 Package: revsw-varnish4-modules
 Architecture: any
-Depends: revsw-varnish4 (>= 4.0.3), ${Varnish:ABI}, ${misc:Depends}
+Depends: revsw-varnish4 (>= 4.1.10), ${Varnish:ABI}, ${misc:Depends}
 Conflicts: revsw-varnish-modules
 Replaces: revsw-varnish-modules
 Description: Various VMODs for Varnish

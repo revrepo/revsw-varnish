@@ -1,0 +1,661 @@
+From 703981e8a6e237e16ee735552e663bcf4b30eddc Mon Sep 17 00:00:00 2001
+From: sorinrevsw <sorin@revsw.com>
+Date: Mon, 25 May 2015 20:58:11 +0300
+Subject: [PATCH 04/63] Various fixes for Vanrish 4.0.3 switch.
+
+---
+ build-aux/missing                                 | 414 ++++++++--------------
+ debian/changelog                                  |   6 +
+ debian/revsw-libvarnish4api-dev.install           |   1 -
+ doc/sphinx/reference/vmod_directors.generated.rst |  67 ++++
+ lib/libvcc/vcc_fixed_token.c                      |  57 +--
+ 5 files changed, 252 insertions(+), 293 deletions(-)
+
+diff --git a/build-aux/missing b/build-aux/missing
+index 86a8fc3..cdea514 100755
+--- a/build-aux/missing
++++ b/build-aux/missing
+@@ -1,11 +1,10 @@
+ #! /bin/sh
+-# Common stub for a few missing GNU programs while installing.
++# Common wrapper for a few potentially missing GNU programs.
+ 
+-scriptversion=2012-01-06.13; # UTC
++scriptversion=2012-06-26.16; # UTC
+ 
+-# Copyright (C) 1996, 1997, 1999, 2000, 2002, 2003, 2004, 2005, 2006,
+-# 2008, 2009, 2010, 2011, 2012 Free Software Foundation, Inc.
+-# Originally by Fran,cois Pinard <pinard@iro.umontreal.ca>, 1996.
++# Copyright (C) 1996-2013 Free Software Foundation, Inc.
++# Originally written by Fran,cois Pinard <pinard@iro.umontreal.ca>, 1996.
+ 
+ # This program is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+@@ -26,68 +25,40 @@ scriptversion=2012-01-06.13; # UTC
+ # the same distribution terms that you use for the rest of that program.
+ 
+ if test $# -eq 0; then
+-  echo 1>&2 "Try \`$0 --help' for more information"
++  echo 1>&2 "Try '$0 --help' for more information"
+   exit 1
+ fi
+ 
+-run=:
+-sed_output='s/.* --output[ =]\([^ ]*\).*/\1/p'
+-sed_minuso='s/.* -o \([^ ]*\).*/\1/p'
+-
+-# In the cases where this matters, `missing' is being run in the
+-# srcdir already.
+-if test -f configure.ac; then
+-  configure_ac=configure.ac
+-else
+-  configure_ac=configure.in
+-fi
++case $1 in
+ 
+-msg="missing on your system"
++  --is-lightweight)
++    # Used by our autoconf macros to check whether the available missing
++    # script is modern enough.
++    exit 0
++    ;;
+ 
+-case $1 in
+---run)
+-  # Try to run requested program, and just exit if it succeeds.
+-  run=
+-  shift
+-  "$@" && exit 0
+-  # Exit code 63 means version mismatch.  This often happens
+-  # when the user try to use an ancient version of a tool on
+-  # a file that requires a minimum version.  In this case we
+-  # we should proceed has if the program had been absent, or
+-  # if --run hadn't been passed.
+-  if test $? = 63; then
+-    run=:
+-    msg="probably too old"
+-  fi
+-  ;;
++  --run)
++    # Back-compat with the calling convention used by older automake.
++    shift
++    ;;
+ 
+   -h|--h|--he|--hel|--help)
+     echo "\
+ $0 [OPTION]... PROGRAM [ARGUMENT]...
+ 
+-Handle \`PROGRAM [ARGUMENT]...' for when PROGRAM is missing, or return an
+-error status if there is no known handling for PROGRAM.
++Run 'PROGRAM [ARGUMENT]...', returning a proper advice when this fails due
++to PROGRAM being missing or too old.
+ 
+ Options:
+   -h, --help      display this help and exit
+   -v, --version   output version information and exit
+-  --run           try to run the given command, and emulate it if it fails
+ 
+ Supported PROGRAM values:
+-  aclocal      touch file \`aclocal.m4'
+-  autoconf     touch file \`configure'
+-  autoheader   touch file \`config.h.in'
+-  autom4te     touch the output file, or create a stub one
+-  automake     touch all \`Makefile.in' files
+-  bison        create \`y.tab.[ch]', if possible, from existing .[ch]
+-  flex         create \`lex.yy.c', if possible, from existing .c
+-  help2man     touch the output file
+-  lex          create \`lex.yy.c', if possible, from existing .c
+-  makeinfo     touch the output file
+-  yacc         create \`y.tab.[ch]', if possible, from existing .[ch]
++  aclocal   autoconf  autoheader   autom4te  automake  makeinfo
++  bison     yacc      flex         lex       help2man
+ 
+-Version suffixes to PROGRAM as well as the prefixes \`gnu-', \`gnu', and
+-\`g' are ignored when checking the name.
++Version suffixes to PROGRAM as well as the prefixes 'gnu-', 'gnu', and
++'g' are ignored when checking the name.
+ 
+ Send bug reports to <bug-automake@gnu.org>."
+     exit $?
+@@ -99,228 +70,141 @@ Send bug reports to <bug-automake@gnu.org>."
+     ;;
+ 
+   -*)
+-    echo 1>&2 "$0: Unknown \`$1' option"
+-    echo 1>&2 "Try \`$0 --help' for more information"
++    echo 1>&2 "$0: unknown '$1' option"
++    echo 1>&2 "Try '$0 --help' for more information"
+     exit 1
+     ;;
+ 
+ esac
+ 
+-# normalize program name to check for.
+-program=`echo "$1" | sed '
+-  s/^gnu-//; t
+-  s/^gnu//; t
+-  s/^g//; t'`
+-
+-# Now exit if we have it, but it failed.  Also exit now if we
+-# don't have it and --version was passed (most likely to detect
+-# the program).  This is about non-GNU programs, so use $1 not
+-# $program.
+-case $1 in
+-  lex*|yacc*)
+-    # Not GNU programs, they don't have --version.
+-    ;;
+-
+-  *)
+-    if test -z "$run" && ($1 --version) > /dev/null 2>&1; then
+-       # We have it, but it failed.
+-       exit 1
+-    elif test "x$2" = "x--version" || test "x$2" = "x--help"; then
+-       # Could not run --version or --help.  This is probably someone
+-       # running `$TOOL --version' or `$TOOL --help' to check whether
+-       # $TOOL exists and not knowing $TOOL uses missing.
+-       exit 1
+-    fi
+-    ;;
+-esac
+-
+-# If it does not exist, or fails to run (possibly an outdated version),
+-# try to emulate it.
+-case $program in
+-  aclocal*)
+-    echo 1>&2 "\
+-WARNING: \`$1' is $msg.  You should only need it if
+-         you modified \`acinclude.m4' or \`${configure_ac}'.  You might want
+-         to install the \`Automake' and \`Perl' packages.  Grab them from
+-         any GNU archive site."
+-    touch aclocal.m4
+-    ;;
+-
+-  autoconf*)
+-    echo 1>&2 "\
+-WARNING: \`$1' is $msg.  You should only need it if
+-         you modified \`${configure_ac}'.  You might want to install the
+-         \`Autoconf' and \`GNU m4' packages.  Grab them from any GNU
+-         archive site."
+-    touch configure
+-    ;;
+-
+-  autoheader*)
+-    echo 1>&2 "\
+-WARNING: \`$1' is $msg.  You should only need it if
+-         you modified \`acconfig.h' or \`${configure_ac}'.  You might want
+-         to install the \`Autoconf' and \`GNU m4' packages.  Grab them
+-         from any GNU archive site."
+-    files=`sed -n 's/^[ ]*A[CM]_CONFIG_HEADER(\([^)]*\)).*/\1/p' ${configure_ac}`
+-    test -z "$files" && files="config.h"
+-    touch_files=
+-    for f in $files; do
+-      case $f in
+-      *:*) touch_files="$touch_files "`echo "$f" |
+-				       sed -e 's/^[^:]*://' -e 's/:.*//'`;;
+-      *) touch_files="$touch_files $f.in";;
+-      esac
+-    done
+-    touch $touch_files
+-    ;;
+-
+-  automake*)
+-    echo 1>&2 "\
+-WARNING: \`$1' is $msg.  You should only need it if
+-         you modified \`Makefile.am', \`acinclude.m4' or \`${configure_ac}'.
+-         You might want to install the \`Automake' and \`Perl' packages.
+-         Grab them from any GNU archive site."
+-    find . -type f -name Makefile.am -print |
+-	   sed 's/\.am$/.in/' |
+-	   while read f; do touch "$f"; done
+-    ;;
+-
+-  autom4te*)
+-    echo 1>&2 "\
+-WARNING: \`$1' is needed, but is $msg.
+-         You might have modified some files without having the
+-         proper tools for further handling them.
+-         You can get \`$1' as part of \`Autoconf' from any GNU
+-         archive site."
+-
+-    file=`echo "$*" | sed -n "$sed_output"`
+-    test -z "$file" && file=`echo "$*" | sed -n "$sed_minuso"`
+-    if test -f "$file"; then
+-	touch $file
+-    else
+-	test -z "$file" || exec >$file
+-	echo "#! /bin/sh"
+-	echo "# Created by GNU Automake missing as a replacement of"
+-	echo "#  $ $@"
+-	echo "exit 0"
+-	chmod +x $file
+-	exit 1
+-    fi
+-    ;;
+-
+-  bison*|yacc*)
+-    echo 1>&2 "\
+-WARNING: \`$1' $msg.  You should only need it if
+-         you modified a \`.y' file.  You may need the \`Bison' package
+-         in order for those modifications to take effect.  You can get
+-         \`Bison' from any GNU archive site."
+-    rm -f y.tab.c y.tab.h
+-    if test $# -ne 1; then
+-        eval LASTARG=\${$#}
+-	case $LASTARG in
+-	*.y)
+-	    SRCFILE=`echo "$LASTARG" | sed 's/y$/c/'`
+-	    if test -f "$SRCFILE"; then
+-	         cp "$SRCFILE" y.tab.c
+-	    fi
+-	    SRCFILE=`echo "$LASTARG" | sed 's/y$/h/'`
+-	    if test -f "$SRCFILE"; then
+-	         cp "$SRCFILE" y.tab.h
+-	    fi
+-	  ;;
+-	esac
+-    fi
+-    if test ! -f y.tab.h; then
+-	echo >y.tab.h
+-    fi
+-    if test ! -f y.tab.c; then
+-	echo 'main() { return 0; }' >y.tab.c
+-    fi
+-    ;;
+-
+-  lex*|flex*)
+-    echo 1>&2 "\
+-WARNING: \`$1' is $msg.  You should only need it if
+-         you modified a \`.l' file.  You may need the \`Flex' package
+-         in order for those modifications to take effect.  You can get
+-         \`Flex' from any GNU archive site."
+-    rm -f lex.yy.c
+-    if test $# -ne 1; then
+-        eval LASTARG=\${$#}
+-	case $LASTARG in
+-	*.l)
+-	    SRCFILE=`echo "$LASTARG" | sed 's/l$/c/'`
+-	    if test -f "$SRCFILE"; then
+-	         cp "$SRCFILE" lex.yy.c
+-	    fi
+-	  ;;
+-	esac
+-    fi
+-    if test ! -f lex.yy.c; then
+-	echo 'main() { return 0; }' >lex.yy.c
+-    fi
+-    ;;
+-
+-  help2man*)
+-    echo 1>&2 "\
+-WARNING: \`$1' is $msg.  You should only need it if
+-	 you modified a dependency of a manual page.  You may need the
+-	 \`Help2man' package in order for those modifications to take
+-	 effect.  You can get \`Help2man' from any GNU archive site."
+-
+-    file=`echo "$*" | sed -n "$sed_output"`
+-    test -z "$file" && file=`echo "$*" | sed -n "$sed_minuso"`
+-    if test -f "$file"; then
+-	touch $file
+-    else
+-	test -z "$file" || exec >$file
+-	echo ".ab help2man is required to generate this page"
+-	exit $?
+-    fi
+-    ;;
+-
+-  makeinfo*)
+-    echo 1>&2 "\
+-WARNING: \`$1' is $msg.  You should only need it if
+-         you modified a \`.texi' or \`.texinfo' file, or any other file
+-         indirectly affecting the aspect of the manual.  The spurious
+-         call might also be the consequence of using a buggy \`make' (AIX,
+-         DU, IRIX).  You might want to install the \`Texinfo' package or
+-         the \`GNU make' package.  Grab either from any GNU archive site."
+-    # The file to touch is that specified with -o ...
+-    file=`echo "$*" | sed -n "$sed_output"`
+-    test -z "$file" && file=`echo "$*" | sed -n "$sed_minuso"`
+-    if test -z "$file"; then
+-      # ... or it is the one specified with @setfilename ...
+-      infile=`echo "$*" | sed 's/.* \([^ ]*\) *$/\1/'`
+-      file=`sed -n '
+-	/^@setfilename/{
+-	  s/.* \([^ ]*\) *$/\1/
+-	  p
+-	  q
+-	}' $infile`
+-      # ... or it is derived from the source name (dir/f.texi becomes f.info)
+-      test -z "$file" && file=`echo "$infile" | sed 's,.*/,,;s,.[^.]*$,,'`.info
+-    fi
+-    # If the file does not exist, the user really needs makeinfo;
+-    # let's fail without touching anything.
+-    test -f $file || exit 1
+-    touch $file
+-    ;;
++# Run the given program, remember its exit status.
++"$@"; st=$?
++
++# If it succeeded, we are done.
++test $st -eq 0 && exit 0
++
++# Also exit now if we it failed (or wasn't found), and '--version' was
++# passed; such an option is passed most likely to detect whether the
++# program is present and works.
++case $2 in --version|--help) exit $st;; esac
++
++# Exit code 63 means version mismatch.  This often happens when the user
++# tries to use an ancient version of a tool on a file that requires a
++# minimum version.
++if test $st -eq 63; then
++  msg="probably too old"
++elif test $st -eq 127; then
++  # Program was missing.
++  msg="missing on your system"
++else
++  # Program was found and executed, but failed.  Give up.
++  exit $st
++fi
+ 
+-  *)
+-    echo 1>&2 "\
+-WARNING: \`$1' is needed, and is $msg.
+-         You might have modified some files without having the
+-         proper tools for further handling them.  Check the \`README' file,
+-         it often tells you about the needed prerequisites for installing
+-         this package.  You may also peek at any GNU archive site, in case
+-         some other package would contain this missing \`$1' program."
+-    exit 1
++perl_URL=http://www.perl.org/
++flex_URL=http://flex.sourceforge.net/
++gnu_software_URL=http://www.gnu.org/software
++
++program_details ()
++{
++  case $1 in
++    aclocal|automake)
++      echo "The '$1' program is part of the GNU Automake package:"
++      echo "<$gnu_software_URL/automake>"
++      echo "It also requires GNU Autoconf, GNU m4 and Perl in order to run:"
++      echo "<$gnu_software_URL/autoconf>"
++      echo "<$gnu_software_URL/m4/>"
++      echo "<$perl_URL>"
++      ;;
++    autoconf|autom4te|autoheader)
++      echo "The '$1' program is part of the GNU Autoconf package:"
++      echo "<$gnu_software_URL/autoconf/>"
++      echo "It also requires GNU m4 and Perl in order to run:"
++      echo "<$gnu_software_URL/m4/>"
++      echo "<$perl_URL>"
++      ;;
++  esac
++}
++
++give_advice ()
++{
++  # Normalize program name to check for.
++  normalized_program=`echo "$1" | sed '
++    s/^gnu-//; t
++    s/^gnu//; t
++    s/^g//; t'`
++
++  printf '%s\n' "'$1' is $msg."
++
++  configure_deps="'configure.ac' or m4 files included by 'configure.ac'"
++  case $normalized_program in
++    autoconf*)
++      echo "You should only need it if you modified 'configure.ac',"
++      echo "or m4 files included by it."
++      program_details 'autoconf'
++      ;;
++    autoheader*)
++      echo "You should only need it if you modified 'acconfig.h' or"
++      echo "$configure_deps."
++      program_details 'autoheader'
++      ;;
++    automake*)
++      echo "You should only need it if you modified 'Makefile.am' or"
++      echo "$configure_deps."
++      program_details 'automake'
++      ;;
++    aclocal*)
++      echo "You should only need it if you modified 'acinclude.m4' or"
++      echo "$configure_deps."
++      program_details 'aclocal'
++      ;;
++   autom4te*)
++      echo "You might have modified some maintainer files that require"
++      echo "the 'automa4te' program to be rebuilt."
++      program_details 'autom4te'
++      ;;
++    bison*|yacc*)
++      echo "You should only need it if you modified a '.y' file."
++      echo "You may want to install the GNU Bison package:"
++      echo "<$gnu_software_URL/bison/>"
++      ;;
++    lex*|flex*)
++      echo "You should only need it if you modified a '.l' file."
++      echo "You may want to install the Fast Lexical Analyzer package:"
++      echo "<$flex_URL>"
++      ;;
++    help2man*)
++      echo "You should only need it if you modified a dependency" \
++           "of a man page."
++      echo "You may want to install the GNU Help2man package:"
++      echo "<$gnu_software_URL/help2man/>"
+     ;;
+-esac
+-
+-exit 0
++    makeinfo*)
++      echo "You should only need it if you modified a '.texi' file, or"
++      echo "any other file indirectly affecting the aspect of the manual."
++      echo "You might want to install the Texinfo package:"
++      echo "<$gnu_software_URL/texinfo/>"
++      echo "The spurious makeinfo call might also be the consequence of"
++      echo "using a buggy 'make' (AIX, DU, IRIX), in which case you might"
++      echo "want to install GNU make:"
++      echo "<$gnu_software_URL/make/>"
++      ;;
++    *)
++      echo "You might have modified some files without having the proper"
++      echo "tools for further handling them.  Check the 'README' file, it"
++      echo "often tells you about the needed prerequisites for installing"
++      echo "this package.  You may also peek at any GNU archive site, in"
++      echo "case some other package contains this missing '$1' program."
++      ;;
++  esac
++}
++
++give_advice "$1" | sed -e '1s/^/WARNING: /' \
++                       -e '2,$s/^/         /' >&2
++
++# Propagate the correct exit status (expected to be 127 for a program
++# not found, 63 for a program that failed due to version mismatch).
++exit $st
+ 
+ # Local variables:
+ # eval: (add-hook 'write-file-hooks 'time-stamp)
+diff --git a/debian/changelog b/debian/changelog
+index b3c3c8a..585b5be 100644
+--- a/debian/changelog
++++ b/debian/changelog
+@@ -1,3 +1,9 @@
++revsw-varnish4 (4.0.3-1) unstable; urgency=medium
++
++  * Switched to Varnish 4.0.3.
++
++ -- Sorin Otescu <sorin@revsw.com>  Mon, 25 May 2015 18:43:06 +0300
++
+ revsw-varnish4 (4.0.2-12) unstable; urgency=medium
+ 
+   * (BP-319) Applied SES_ScheduleReq fix from:
+diff --git a/debian/revsw-libvarnish4api-dev.install b/debian/revsw-libvarnish4api-dev.install
+index ab28c34..620fced 100644
+--- a/debian/revsw-libvarnish4api-dev.install
++++ b/debian/revsw-libvarnish4api-dev.install
+@@ -1,6 +1,5 @@
+ usr/include
+ usr/share/aclocal
+-usr/share/varnish/include/* /usr/include/varnish
+ usr/share/varnish/vmodtool.py
+ usr/lib/*/libvarnishapi.so
+ usr/lib/*/pkgconfig/*.pc
+diff --git a/doc/sphinx/reference/vmod_directors.generated.rst b/doc/sphinx/reference/vmod_directors.generated.rst
+index 8b7e6c8..410cdbc 100644
+--- a/doc/sphinx/reference/vmod_directors.generated.rst
++++ b/doc/sphinx/reference/vmod_directors.generated.rst
+@@ -63,6 +63,10 @@ CONTENTS
+ * :ref:`obj_random`
+ * :ref:`func_random.add_backend`
+ * :ref:`func_random.backend`
++* :ref:`obj_rev_dns`
++* :ref:`func_rev_dns.backend`
++* :ref:`func_rev_dns.set_backend`
++* :ref:`func_rev_dns.set_max_dns_ttl`
+ * :ref:`obj_round_robin`
+ * :ref:`func_round_robin.add_backend`
+ * :ref:`func_round_robin.backend`
+@@ -256,3 +260,66 @@ Description
+ Example
+ 	set req.backend_hint = vdir.backend(req.http.cookie);  # pick a backend based on the cookie header from the client
+ 
++
++.. _obj_rev_dns:
++
++Object rev_dns
++==============
++
++
++Description
++	Create a Rev DNS backend director.
++
++	The Rev DNS director resolves the address of its only backend dynamically.
++	If multiple addresses are returned, it will act as a round_robin director
++	between all of them (if they are healthy).
++	The TTL of the DNS result is respected.
++
++Example
++	new vdir = directors.rev_dns();
++
++.. _func_rev_dns.set_max_dns_ttl:
++
++VOID rev_dns.set_max_dns_ttl(DURATION)
++--------------------------------------
++
++Prototype
++	VOID rev_dns.set_max_dns_ttl(DURATION)
++
++Description
++	Set the maximum TTL of the DNS query result.
++
++	By default, the maximum TTL is one hour.
++
++Example
++	vdir.set_max_dns_ttl(10s);
++
++.. _func_rev_dns.set_backend:
++
++BOOL rev_dns.set_backend(BACKEND)
++---------------------------------
++
++Prototype
++	BOOL rev_dns.set_backend(BACKEND)
++
++Description
++	Set the backend whose address is resolved by the director.
++
++	The backend must have the 'preresolve_dns' parameter set to 1.
++
++Example
++	vdir.set_backend(backend);
++
++
++.. _func_rev_dns.backend:
++
++BACKEND rev_dns.backend()
++-------------------------
++
++Prototype
++	BACKEND rev_dns.backend()
++
++Description
++	Pick a backend from the director.
++Example
++	set req.backend_hint = vdir.backend();
+diff --git a/lib/libvcc/vcc_fixed_token.c b/lib/libvcc/vcc_fixed_token.c
+index 6be2f03..cf54bd1 100644
+--- a/lib/libvcc/vcc_fixed_token.c
++++ b/lib/libvcc/vcc_fixed_token.c
+@@ -252,26 +252,27 @@ vcl_output_lang_h(struct vsb *sb)
+ 	    "\n/*\n * A backend is a host+port somewhere on the network\n"
+ 	    " */\nstruct vrt_backend {\n\tconst char\t\t\t*vcl_name;\n"
+ 	    "\tconst char\t\t\t*ipv4_addr;\n\tconst char\t\t\t*ipv6_addr;\n"
+-	    "\tconst char\t\t\t*port;\n\n\tconst struct suckaddr\t\t*ipv4_suc"
+-	    "kaddr;\n\tconst struct suckaddr\t\t*ipv6_suckaddr;\n"
+-	    "\n\tconst char\t\t\t*hosthdr;\n\n\tdouble\t\t\t\tconnect_timeout"
+-	    ";\n\tdouble\t\t\t\tfirst_byte_timeout;\n\tdouble\t\t\t\tbetween_"
+-	    "bytes_timeout;\n\tunsigned\t\t\tmax_connections;\n"
+-	    "\tconst struct vrt_backend_probe\t*probe;\n};\n\n"
+-	    "/*\n * other stuff.\n * XXX: document when bored\n"
+-	    " */\n\nstruct vrt_ref {\n\tunsigned\tsource;\n\tunsigned\toffset"
+-	    ";\n\tunsigned\tline;\n\tunsigned\tpos;\n\tunsigned\tcount;\n"
+-	    "\tconst char\t*token;\n};\n\n/* ACL related */\n#define VRT_ACL_"
+-	    "MAXADDR\t\t16\t/* max(IPv4, IPv6) */\n\nvoid VRT_acl_log(VRT_CTX"
+-	    ", const char *msg);\n\n/* req related */\n\nint VRT_CacheReqBody"
+-	    "(VRT_CTX, long long maxsize);\n\n/* Regexp related */\n"
+-	    "void VRT_re_init(void **, const char *);\nvoid VRT_re_fini(void "
+-	    "*);\nint VRT_re_match(VRT_CTX, const char *, void *re);\n"
+-	    "const char *VRT_regsub(VRT_CTX, int all, const char *, void "
+-	    "*, const char *);\n\nvoid VRT_ban_string(VRT_CTX, const char "
+-	    "*);\nvoid VRT_purge(VRT_CTX, double ttl, double grace, double "
+-	    "keep);\n\nvoid VRT_count(VRT_CTX, unsigned);\nint VRT_rewrite(co"
+-	    "nst char *, const char *);\nvoid VRT_error(VRT_CTX, unsigned, "
++	    "    const char\t\t\t*host;\n\tconst char\t\t\t*port;\n"
++	    "\n\tconst struct suckaddr\t\t*ipv4_suckaddr;\n\tconst struct "
++	    "suckaddr\t\t*ipv6_suckaddr;\n\n\tconst char\t\t\t*hosthdr;\n"
++	    "\n\tdouble\t\t\t\tconnect_timeout;\n\tdouble\t\t\t\tfirst_byte_t"
++	    "imeout;\n\tdouble\t\t\t\tbetween_bytes_timeout;\n"
++	    "\tunsigned\t\t\tmax_connections;\n\tconst struct vrt_backend_pro"
++	    "be\t*probe;\n};\n\n/*\n * other stuff.\n * XXX: document when "
++	    "bored\n */\n\nstruct vrt_ref {\n\tunsigned\tsource;\n"
++	    "\tunsigned\toffset;\n\tunsigned\tline;\n\tunsigned\tpos;\n"
++	    "\tunsigned\tcount;\n\tconst char\t*token;\n};\n\n"
++	    "/* ACL related */\n#define VRT_ACL_MAXADDR\t\t16\t/* max(IPv4, "
++	    "IPv6) */\n\nvoid VRT_acl_log(VRT_CTX, const char *msg);\n"
++	    "\n/* req related */\n\nint VRT_CacheReqBody(VRT_CTX, long "
++	    "long maxsize);\n\n/* Regexp related */\nvoid VRT_re_init(void "
++	    "**, const char *);\nvoid VRT_re_fini(void *);\nint VRT_re_match("
++	    "VRT_CTX, const char *, void *re);\nconst char *VRT_regsub(VRT_CT"
++	    "X, int all, const char *, void *, const char *);\n"
++	    "\nvoid VRT_ban_string(VRT_CTX, const char *);\nvoid VRT_purge(VR"
++	    "T_CTX, double ttl, double grace, double keep);\n\n"
++	    "void VRT_count(VRT_CTX, unsigned);\nint VRT_rewrite(const "
++	    "char *, const char *);\nvoid VRT_error(VRT_CTX, unsigned, "
+ 	    "const char *);\nint VRT_switch_config(const char *);\n"
+ 	    "\nchar *VRT_GetHdr(VRT_CTX, const struct gethdr_s *);\n"
+ 	    "void VRT_SetHdr(VRT_CTX, const struct gethdr_s *, const char "
+@@ -284,13 +285,15 @@ vcl_output_lang_h(struct vsb *sb)
+ 	    "char *, ...);\n\n/* Backend related */\nvoid VRT_init_dir(struct"
+ 	    " cli *, struct director **, int idx, const void *priv);\n"
+ 	    "void VRT_fini_dir(struct cli *, struct director *);\n"
+-	    "\n/* Suckaddr related */\nint VRT_VSA_GetPtr(const struct "
+-	    "suckaddr *sua, const unsigned char ** dst);\n\n/* VMOD/Modules "
+-	    "related */\nint VRT_Vmod_Init(void **hdl, void *ptr, int len, "
+-	    "const char *nm,\n    const char *path, const char *file_id, "
+-	    "struct cli *cli);\nvoid VRT_Vmod_Fini(void **hdl);\n"
+-	    "\nstruct vmod_priv;\ntypedef void vmod_priv_free_f(void *);\n"
+-	    "struct vmod_priv {\n\tvoid\t\t\t*priv;\n\tint\t\t\tlen;\n"
++	    "\n/* RevSW: get the VCL backend from a simple director */\n"
++	    "const struct vrt_backend *\nVRT_get_backend(struct cli *, "
++	    "struct director *);\n\n/* Suckaddr related */\nint VRT_VSA_GetPt"
++	    "r(const struct suckaddr *sua, const unsigned char ** dst);\n"
++	    "\n/* VMOD/Modules related */\nint VRT_Vmod_Init(void **hdl, "
++	    "void *ptr, int len, const char *nm,\n    const char *path, "
++	    "const char *file_id, struct cli *cli);\nvoid VRT_Vmod_Fini(void "
++	    "**hdl);\n\nstruct vmod_priv;\ntypedef void vmod_priv_free_f(void"
++	    " *);\nstruct vmod_priv {\n\tvoid\t\t\t*priv;\n\tint\t\t\tlen;\n"
+ 	    "\tvmod_priv_free_f\t*free;\n};\n\ntypedef int vmod_init_f(struct"
+ 	    " vmod_priv *,  const struct VCL_conf *);\n\nvoid VRT_priv_fini(c"
+ 	    "onst struct vmod_priv *p);\n\n/* Stevedore related functions "
+-- 
+2.7.4
+

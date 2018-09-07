@@ -1,0 +1,578 @@
+From a18ae69d27de3e824a76e39335579b469df98fb5 Mon Sep 17 00:00:00 2001
+From: djkobraz <djkobraz@gmail.com>
+Date: Wed, 6 Sep 2017 01:25:41 +0300
+Subject: [PATCH 59/63] digest version update
+
+---
+ varnish4-vmods/libvmod-digest-4.0/.travis.yml      |   2 +-
+ varnish4-vmods/libvmod-digest-4.0/CHANGES.rst      |  28 ----
+ varnish4-vmods/libvmod-digest-4.0/LICENSE          |   3 +
+ varnish4-vmods/libvmod-digest-4.0/Makefile.am      |   2 +-
+ varnish4-vmods/libvmod-digest-4.0/README.rst       |  57 ++++---
+ varnish4-vmods/libvmod-digest-4.0/configure.ac     |   4 +-
+ .../libvmod-digest-4.0/src/tests/test_hex.vtc      |  48 ------
+ .../libvmod-digest-4.0/src/vmod_digest.c           | 173 ++++++++-------------
+ .../libvmod-digest-4.0/src/vmod_digest.vcc         |   5 +-
+ 9 files changed, 95 insertions(+), 227 deletions(-)
+ delete mode 100644 varnish4-vmods/libvmod-digest-4.0/CHANGES.rst
+ delete mode 100644 varnish4-vmods/libvmod-digest-4.0/src/tests/test_hex.vtc
+
+diff --git a/varnish4-vmods/libvmod-digest-4.0/.travis.yml b/varnish4-vmods/libvmod-digest-4.0/.travis.yml
+index db7ff4c..8e3e46d 100644
+--- a/varnish4-vmods/libvmod-digest-4.0/.travis.yml
++++ b/varnish4-vmods/libvmod-digest-4.0/.travis.yml
+@@ -7,7 +7,7 @@ before_install:
+   - sudo apt-get install apt-transport-https libmhash-dev python-docutils
+   - curl -s https://repo.varnish-cache.org/ubuntu/GPG-key.txt |
+     sudo apt-key add -
+-  - echo "deb https://repo.varnish-cache.org/ubuntu/ precise varnish-4.1" |
++  - echo "deb https://repo.varnish-cache.org/ubuntu/ precise varnish-4.0" |
+     sudo tee /etc/apt/sources.list.d/varnish-cache.list
+   - sudo apt-get update
+   - sudo apt-get install varnish libvarnishapi-dev
+diff --git a/varnish4-vmods/libvmod-digest-4.0/CHANGES.rst b/varnish4-vmods/libvmod-digest-4.0/CHANGES.rst
+deleted file mode 100644
+index ac2167d..0000000
+--- a/varnish4-vmods/libvmod-digest-4.0/CHANGES.rst
++++ /dev/null
+@@ -1,28 +0,0 @@
+-This is a running log of changes to libvmod-digest.
+-
+-libvmod-digest 1.0.1 (2016-03-15)
+----------------------------------
+-
+-Changes since 1.0.0:
+-
+-* Fix overread in base64_encode()
+-* is_hex() stylistic cleanups.
+-
+-This release was tested with Varnish Cache 4.1.2.
+-
+-
+-libvmod-digest 1.0.0 (2016-03-14)
+----------------------------------
+-
+-This is libvmod-digest, allowing use of libmhash (cryptographic functions)
+-in Varnish VCL.
+-
+-Changes since last release:
+-
+-* Semantic versioning introduced.
+-
+-* Packaging files moved out of tree.
+-
+-This release was tested with Varnish Cache 4.1.2.
+-
+-List of changes was not kept for previous versions.
+diff --git a/varnish4-vmods/libvmod-digest-4.0/LICENSE b/varnish4-vmods/libvmod-digest-4.0/LICENSE
+index 264d421..56cb50b 100644
+--- a/varnish4-vmods/libvmod-digest-4.0/LICENSE
++++ b/varnish4-vmods/libvmod-digest-4.0/LICENSE
+@@ -1,3 +1,6 @@
++Copyright (c) 2011 Varnish Software AS
++All rights reserved.
++
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions
+ are met:
+diff --git a/varnish4-vmods/libvmod-digest-4.0/Makefile.am b/varnish4-vmods/libvmod-digest-4.0/Makefile.am
+index d088e97..1b65c70 100644
+--- a/varnish4-vmods/libvmod-digest-4.0/Makefile.am
++++ b/varnish4-vmods/libvmod-digest-4.0/Makefile.am
+@@ -5,7 +5,7 @@ SUBDIRS = src
+ DISTCHECK_CONFIGURE_FLAGS = \
+ 	VMOD_DIR='$${libdir}/varnish/vmods'
+ 
+-EXTRA_DIST = README.rst LICENSE CHANGES.rst
++EXTRA_DIST = README.rst LICENSE vmod-digest.spec debian
+ 
+ doc_DATA = README.rst LICENSE
+ 
+diff --git a/varnish4-vmods/libvmod-digest-4.0/README.rst b/varnish4-vmods/libvmod-digest-4.0/README.rst
+index e56a68e..ef68d82 100644
+--- a/varnish4-vmods/libvmod-digest-4.0/README.rst
++++ b/varnish4-vmods/libvmod-digest-4.0/README.rst
+@@ -8,8 +8,8 @@ Varnish Digest Module
+ 
+ :Manual section: 3
+ :Author: Kristian Lyngstøl
+-:Date: 2016-03-16
+-:Version: 1.0.1
++:Date: 2011-09-22
++:Version: 0.3
+ 
+ SYNOPSIS
+ ========
+@@ -25,9 +25,6 @@ SYNOPSIS
+         digest.base64(<string>);
+         digest.base64url(<string>);
+         digest.base64url_nopad(<string>);
+-        digest.base64_hex(<string>);
+-        digest.base64url_hex(<string>);
+-        digest.base64url_nopad_hex(<string>);
+         digest.base64_decode(<string>);
+         digest.base64url_decode(<string>);
+         digest.base64url_nopad_decode(<string>);
+@@ -80,7 +77,8 @@ Example VCL::
+ 	import digest;
+ 
+ 	sub vcl_recv {
+-		if (digest.hmac_sha256("key",req.http.x-data) != req.http.x-data-sig)
++		if (digest.hmac_sha256("key",req.http.x-some-header) !=
++			digest.hmac_sha256("key",req.http.x-some-header-signed))
+ 		{
+ 			return (synth(401, "Naughty user!"));
+ 		}
+@@ -131,27 +129,6 @@ Example
+                         digest.base64({"content with
+                         newline in it"});
+ 
+-base64_hex, base64url_hex, base64url_nopad_hex
+------------------------------------------------
+-
+-Prototype
+-        ::
+-
+-                digest.base64_hex(<string>);
+-                digest.base64url_hex(<string>);
+-                digest.base64url_nopad_hex(<string>);
+-Returns
+-        String
+-Description
+-        Returns the base64-encoded version of the hex encoded input-string. The
+-        input-string can start with an optional 0x. Input is hex-decoded into binary
+-        and the encoding is identical to base64, base64url, and base64url_nopad.
+-Example
+-        ::
+-
+-                set resp.http.x-data-sig =
+-                        digest.base64_hex("0xdd26bfddf122c1055d4c");
+-
+ hash_(algorithm)
+ ----------------
+ 
+@@ -264,15 +241,25 @@ Make targets:
+ * make distcheck - run check and prepare a tarball of the vmod.
+ 
+ 
+-AUTHOR
+-======
++ACKNOWLEDGEMENTS
++================
+ 
+-Original author: Kristian Lyngstøl <kristian@varnish-software.com>.
++Author: Kristian Lyngstøl <kristian@varnish-software.com>, Varnish Software AS
+ 
+ This Vmod was written for Media Norge, Schibsted and others.
+ 
+-The bulk of the functionality is acquired through libmhash.
++The bulk of the functionality is acquired through libmhash
++
++Bug reports by: Magnus Hagander
++
++HISTORY
++=======
++
++Version 0.1: Initial version, mostly feature-complete
++
++Version 0.2: Mainly build-related cleanups, no feature-changes
+ 
++Version 0.3: Handle empty/NULL strings for hashes and keys.
+ 
+ BUGS
+ ====
+@@ -295,3 +282,11 @@ SEE ALSO
+ * varnishd(1)
+ * vcl(7)
+ * https://github.com/varnish/libvmod-digest
++
++COPYRIGHT
++=========
++
++This document is licensed under the same license as the
++libvmod-digest project. See LICENSE for details.
++
++* Copyright (c) 2011 Varnish Software
+diff --git a/varnish4-vmods/libvmod-digest-4.0/configure.ac b/varnish4-vmods/libvmod-digest-4.0/configure.ac
+index b5d169f..9841357 100644
+--- a/varnish4-vmods/libvmod-digest-4.0/configure.ac
++++ b/varnish4-vmods/libvmod-digest-4.0/configure.ac
+@@ -1,6 +1,6 @@
+ AC_PREREQ(2.59)
+-AC_COPYRIGHT([Copyright (c) 2011-2016 Varnish Software])
+-AC_INIT([libvmod-digest], [1.0.1])
++AC_COPYRIGHT([Copyright (c) 2011-2015 Varnish Software AS])
++AC_INIT([libvmod-digest], [trunk])
+ AC_CONFIG_MACRO_DIR([m4])
+ m4_ifndef([VARNISH_VMOD_INCLUDES], AC_MSG_ERROR([Need varnish.m4]))
+ AC_CONFIG_SRCDIR(src/vmod_digest.vcc)
+diff --git a/varnish4-vmods/libvmod-digest-4.0/src/tests/test_hex.vtc b/varnish4-vmods/libvmod-digest-4.0/src/tests/test_hex.vtc
+deleted file mode 100644
+index 9c2aef4..0000000
+--- a/varnish4-vmods/libvmod-digest-4.0/src/tests/test_hex.vtc
++++ /dev/null
+@@ -1,48 +0,0 @@
+-varnishtest "Test base64 hex encoding"
+-
+-server s1 {
+-       rxreq
+-       txresp
+-} -start
+-
+-varnish v1 -vcl+backend {
+-	import digest from "${vmod_topbuild}/src/.libs/libvmod_digest.so";
+-
+-	sub vcl_deliver {
+-		set resp.http.hmac_sha1 = digest.hmac_sha1("secret", "test string");
+-		set resp.http.hmac_sha1_b64 = digest.base64(digest.hmac_sha1("secret", "test string"));
+-		set resp.http.hmac_sha1_b64_hex = digest.base64_hex(digest.hmac_sha1("secret", "test string"));
+-
+-		set resp.http.md5 = digest.hash_md5("test string");
+-		set resp.http.md5_b64 = digest.base64(digest.hash_md5("test string"));
+-		set resp.http.md5_b64_hex = digest.base64_hex(digest.hash_md5("test string"));
+-
+-		set resp.http.test1_b64 = digest.base64("TeST");
+-		set resp.http.test1_b64_hex = digest.base64_hex("0x54655354");
+-
+-		set resp.http.test2_b64_url = digest.base64url("Interesting!");
+-		set resp.http.test2_b64_url_hex = digest.base64url_hex("496E746572657374696E6721");
+-
+-		set resp.http.test3_b64_unopad = digest.base64url_nopad("$");
+-		set resp.http.test3_b64_unopad_hex = digest.base64url_nopad_hex("0x24");
+-	}
+-} -start
+-
+-client c1 {
+-	txreq -url "/"
+-	rxresp
+-
+-	expect resp.http.hmac_sha1 == "0xdd26bfddf122c1055d4cd5b054227727e1e3eecf"
+-	expect resp.http.hmac_sha1_b64 == "MHhkZDI2YmZkZGYxMjJjMTA1NWQ0Y2Q1YjA1NDIyNzcyN2UxZTNlZWNm"
+-	expect resp.http.hmac_sha1_b64_hex == "3Sa/3fEiwQVdTNWwVCJ3J+Hj7s8="
+-
+-	expect resp.http.md5 == "6f8db599de986fab7a21625b7916589c"
+-	expect resp.http.md5_b64 == "NmY4ZGI1OTlkZTk4NmZhYjdhMjE2MjViNzkxNjU4OWM="
+-	expect resp.http.md5_b64_hex == "b421md6Yb6t6IWJbeRZYnA=="
+-
+-	expect resp.http.test1_b64 == resp.http.test1_b64_hex
+-	expect resp.http.test2_b64_url == resp.http.test2_b64_url_hex
+-	expect resp.http.test3_b64_unopad == resp.http.test3_b64_unopad_hex
+-}
+-
+-client c1 -run
+diff --git a/varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.c b/varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.c
+index 0836988..ebea73f 100644
+--- a/varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.c
++++ b/varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.c
+@@ -30,7 +30,7 @@
+  * Digest vmod for Varnish, using libmhash.
+  * See README.rst for usage.
+  */
+-#include <stdbool.h>
++
+ #include <stdlib.h>
+ #include <stdarg.h>
+ #include <stdio.h>
+@@ -51,16 +51,11 @@
+ #undef PACKAGE_VERSION
+ #undef VERSION
+ 
+-#include "vcl.h"
+ #include "vrt.h"
+ #include "cache/cache.h"
+ #include "vcc_if.h"
+ #include "config.h"
+ 
+-#ifndef MIN
+-#define MIN(a,b) ((a) > (b) ? (b) : (a))
+-#endif
+-
+ #ifndef VRT_CTX
+ #define VRT_CTX		const struct vrt_ctx *ctx
+ #endif
+@@ -96,13 +91,10 @@ vmod_digest_alpha_init(struct e_alphabet *alpha)
+ }
+ 
+ int
+-init_function(VRT_CTX, struct vmod_priv *priv, enum vcl_event_e e)
++init_function(struct vmod_priv *priv, const struct VCL_conf *conf)
+ {
+-	(void)ctx;
+ 	(void)priv;
+-
+-	if (e != VCL_EVENT_LOAD)
+-		return (0);
++	(void)conf;
+ 
+     	alphabet[BASE64].b64 =
+ 		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"
+@@ -167,123 +159,88 @@ base64_decode(struct e_alphabet *alpha, char *d, unsigned dlen, const char *s)
+ }
+ 
+ /*
+- * Convert a hex character into an int
+- */
+-static unsigned char
+-char_to_int (char c)
+-{
+-	if (c >= '0' && c <= '9')
+-		return c - '0';
+-	else if (c >= 'a' && c <= 'f')
+-		return c - 87;
+-	else if (c >= 'A' && c <= 'F')
+-		return c - 55;
+-	else
+-		return 0;
+-}
+-
+-/*
+- * Convert a hex value into an 8bit int
+- */
+-static unsigned char
+-hex_to_int(const char *in, size_t inlen)
+-{
+-	unsigned char value = 0;
+-
+-	assert(inlen >= 2);
+-
+-	value = char_to_int(in[0]) << 4;
+-	value += char_to_int(in[1]);
+-
+-	return value;
+-}
+-
+-/*
+  * Base64-encode *in (size: inlen) into *out, max outlen bytes. If there is
+  * insufficient space, it will bail out and return -1. Otherwise, it will
+  * null-terminate and return the used space.
+  * The alphabet `a` defines... the alphabet. Padding is optional.
+  * Inspired heavily by gnulib/Simon Josefsson (as referenced in RFC4648)
++ *
++ * XXX: tmp[] and idx are used to ensure the reader (and author) retains
++ * XXX: a limited amount of sanity. They are strictly speaking not
++ * XXX: necessary, if you don't mind going crazy.
++ *
++ * FIXME: outlenorig is silly. Flip the logic.
+  */
+ static size_t
+-base64_encode(struct e_alphabet *alpha, const char *in,
+-    size_t inlen, int is_hex, char *out, size_t outlen)
++base64_encode (struct e_alphabet *alpha, const char *in,
++		size_t inlen, char *out, size_t outlen)
+ {
+-	size_t out_used = 0;
++	size_t outlenorig = outlen;
++	unsigned char tmp[3], idx;
+ 
+-	/*
+-	 * If reading a hex string, if "0x" is present, strip. When no further
+-	 * characters follow, we return an empty output string.
+-	 */
+-	if (is_hex && inlen > 2 && in[0] == '0' && in[1] == 'x') {
+-		in += 2;
+-		inlen -= 2;
++	if (outlen<4)
++		return -1;
++
++	if (inlen == 0) {
++		*out = '\0';
++		return (1);
+ 	}
+ 
+-	/*
+-	 * B64 requires 4*ceil(n/3) bytes of space + 1 nul terminator
+-	 * byte to generate output for a given input length n. When is_hex is
+-	 * set, each character of inlen represents half a byte, hence the
+-	 * division by 6.
+-	 */
+-	if ((!is_hex && outlen < 4 * (inlen + 2 / 3) + 1) ||
+-	    ( is_hex && outlen < 4 * (inlen + 5 / 6) + 1))
+-		return -1;
++	while (1) {
++		assert(inlen);
++		assert(outlen>3);
+ 
+-	while ((!is_hex && inlen) || (is_hex && inlen >= 2)) {
+-		unsigned char tmp[3] = {0, 0, 0};
+-		unsigned char idx;
+-		int min_avail = is_hex ? MIN(inlen, 6) : MIN(inlen, 3);
+-		int nread = 0;
+-		int off = 0;
+-
+-		if (is_hex) {
+-			while (min_avail >= 2) {
+-				tmp[off++] = hex_to_int(in, inlen);
+-				in += 2;
+-				inlen -= 2;
+-				nread++;
+-				min_avail -= 2;
+-			}
+-		} else {
+-			memcpy(tmp, in, min_avail);
+-			in += min_avail;
+-			inlen -= min_avail;
+-			nread = min_avail;
+-		}
++		tmp[0] = (unsigned char) in[0];
++		tmp[1] = (unsigned char) in[1];
++		tmp[2] = (unsigned char) in[2];
+ 
+ 		*out++ = alpha->b64[(tmp[0] >> 2) & 0x3f];
+ 
+ 		idx = (tmp[0] << 4);
+-		if (nread > 1)
++		if (inlen>1)
+ 			idx += (tmp[1] >> 4);
+ 		idx &= 0x3f;
+ 		*out++ = alpha->b64[idx];
+ 
+-		if (nread > 1) {
++		if (inlen>1) {
+ 			idx = (tmp[1] << 2);
+-			if (nread > 2)
++			if (inlen>2)
+ 				idx += tmp[2] >> 6;
+ 			idx &= 0x3f;
+ 
+ 			*out++ = alpha->b64[idx];
+-		} else if (alpha->padding)
+-			*out++ = alpha->padding;
++		} else {
++			if (alpha->padding)
++				*out++ = alpha->padding;
++		}
+ 
+-		if (nread > 2)
++		if (inlen>2) {
+ 			*out++ = alpha->b64[tmp[2] & 0x3f];
+-		else if (alpha->padding)
+-			*out++ = alpha->padding;
++		} else {
++			if (alpha->padding)
++				*out++ = alpha->padding;
++		}
+ 
+-		if (alpha->padding)
+-			out_used += 4;
+-		else
+-			out_used += 2 + (nread - 1);
++		/*
++		 * XXX: Only consume 4 bytes, but since we need a fifth for
++		 * XXX: NULL later on, we might as well test here.
++		 */
++		if (outlen<5)
++			return -1;
++
++		outlen -= 4;
++
++		if (inlen<4)
++			break;
++
++		inlen -= 3;
++		in += 3;
+ 	}
+ 
++	assert(outlen);
++	outlen--;
+ 	*out = '\0';
+-
+-	return out_used + 1;
++	return outlenorig-outlen;
+ }
+ 
+ VCL_STRING
+@@ -293,7 +250,7 @@ vmod_hmac_generic(VRT_CTX, hashid hash, const char *key, const char *msg)
+ 	unsigned char mac[blocksize];
+ 	unsigned char *hexenc;
+ 	unsigned char *hexptr;
+-	size_t j;
++	unsigned j;
+ 	MHASH td;
+ 
+ 	assert(msg);
+@@ -327,14 +284,14 @@ vmod_hmac_generic(VRT_CTX, hashid hash, const char *key, const char *msg)
+ 	for (j = 0; j < blocksize; j++) {
+ 		sprintf((char*)hexptr,"%.2x", mac[j]);
+ 		hexptr+=2;
+-		assert((hexptr-hexenc)<(2*(long)blocksize + 3));
++		assert((size_t)(hexptr - hexenc) < (2 * blocksize + 3));
+ 	}
+ 	*hexptr = '\0';
+ 	return (const char *)hexenc;
+ }
+ 
+ VCL_STRING
+-vmod_base64_generic(VRT_CTX, enum alphabets a, const char *msg, int is_hex)
++vmod_base64_generic(VRT_CTX, enum alphabets a, const char *msg)
+ {
+ 	char *p;
+ 	int u;
+@@ -347,7 +304,7 @@ vmod_base64_generic(VRT_CTX, enum alphabets a, const char *msg, int is_hex)
+ 
+ 	u = WS_Reserve(ctx->ws,0);
+ 	p = ctx->ws->f;
+-	u = base64_encode(&alphabet[a],msg,strlen(msg),is_hex,p,u);
++	u = base64_encode(&alphabet[a],msg,strlen(msg),p,u);
+ 	if (u < 0) {
+ 		WS_Release(ctx->ws,0);
+ 		return NULL;
+@@ -384,7 +341,7 @@ vmod_hash_generic(VRT_CTX, hashid hash, const char *msg)
+ {
+ 	MHASH td;
+ 	unsigned char h[mhash_get_block_size(hash)];
+-	unsigned int i;
++	unsigned i;
+ 	char *p;
+ 	char *ptmp;
+ 
+@@ -395,7 +352,7 @@ vmod_hash_generic(VRT_CTX, hashid hash, const char *msg)
+ 	p = WS_Alloc(ctx->ws,mhash_get_block_size(hash)*2 + 1);
+ 	AN(p);
+ 	ptmp = p;
+-	for (i = 0; i<mhash_get_block_size(hash);i++) {
++	for (i = 0; i < mhash_get_block_size(hash); i++) {
+ 		sprintf(ptmp,"%.2x",h[i]);
+ 		ptmp+=2;
+ 	}
+@@ -445,15 +402,7 @@ vmod_ ## codec_low (VRT_CTX, const char *msg) \
+ { \
+ 	if (msg == NULL) \
+ 		msg = ""; \
+-	return vmod_base64_generic(ctx,codec_big,msg, 0); \
+-} \
+-\
+-VCL_STRING __match_proto__ () \
+-vmod_ ## codec_low ## _hex (VRT_CTX, const char *msg) \
+-{ \
+-	if (msg == NULL) \
+-		msg = ""; \
+-	return vmod_base64_generic(ctx,codec_big,msg, 1); \
++	return vmod_base64_generic(ctx,codec_big,msg); \
+ } \
+ \
+ const char * __match_proto__ () \
+diff --git a/varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.vcc b/varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.vcc
+index c6c7bae..240be86 100644
+--- a/varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.vcc
++++ b/varnish4-vmods/libvmod-digest-4.0/src/vmod_digest.vcc
+@@ -1,16 +1,13 @@
+ $Module digest 3 Varnish Digest Module
+-$Event init_function
++$Init init_function
+ $Function STRING hmac_sha256(STRING, STRING)
+ $Function STRING hmac_sha1(STRING, STRING)
+ $Function STRING hmac_md5(STRING, STRING)
+ $Function STRING base64(STRING)
+-$Function STRING base64_hex(STRING)
+ $Function STRING base64_decode(STRING)
+ $Function STRING base64url(STRING)
+-$Function STRING base64url_hex(STRING)
+ $Function STRING base64url_decode(STRING)
+ $Function STRING base64url_nopad(STRING)
+-$Function STRING base64url_nopad_hex(STRING)
+ $Function STRING base64url_nopad_decode(STRING)
+ $Function STRING hash_sha1(STRING)
+ $Function STRING hash_sha224(STRING)
+-- 
+2.7.4
+

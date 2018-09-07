@@ -1,0 +1,88 @@
+#!/usr/bin/make -f
+
+DH_VERBOSE=1
+
+# List of architectures where jemalloc is not available
+DISABLE_JEMALLOC_ARCH_LIST := hppa m68k
+
+# Explicitly initialize a variable to select architecture, unless it has been
+# defined before.  This is compared against the DISABLE_*_LIST variables later
+# in this makefile
+DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
+
+# Set local state dir for FHS
+LOCAL_CONFIGURE_FLAGS = --localstatedir=/var/lib
+#LOCAL_CONFIGURE_FLAGS = --localstatedir=/var/lib --enable-debugging-symbols
+
+ifneq ($(filter $(DEB_HOST_ARCH),$(DISABLE_JEMALLOC_ARCH_LIST)),)
+LOCAL_CONFIGURE_FLAGS += --disable-jemalloc
+endif
+
+VMOD_ABI = $(shell printf '\#include "vmod_abi.h"\nVMOD_ABI_Version' | cpp - -Iinclude | sed '/^\#/D;s/"//g;s/\([A-Z]\)/\L\1/g;s/[^a-z0-9.]/-/g;s/varnish/varnishabi/')
+
+# Main build rule, leave everything to debhelper
+%:
+	dh $@ --parallel --with=systemd,autoreconf
+
+ifeq (,$(filter test,$(LOCAL_BUILD_OPTIONS)))
+# Disable automated build tests
+override_dh_auto_test:
+endif
+
+# Override to add local configure flags
+override_dh_auto_configure:
+	dh_auto_configure -- $(LOCAL_CONFIGURE_FLAGS)
+
+override_dh_auto_install:
+	dh_auto_install -a
+	install -d debian/tmp/etc/varnish
+	install -T -m 0644 etc/example.vcl debian/tmp/etc/varnish/default.vcl
+	install -T -m 0644 etc/revsw.vcl debian/tmp/etc/varnish/revsw.vcl
+	@ # Remove .la files
+	@ # (See http://wiki.debian.org/ReleaseGoals/LAFileRemoval)
+	find $(CURDIR)/debian/ -name \*.la -delete
+	@ # Nuke the static libs too
+	find $(CURDIR)/debian -name \*.a -delete
+
+override_dh_install:
+	dh_install -a --fail-missing
+	@ # Override to add the "reload-vcl" script
+	install -o root -g root -m 755 \
+		$(CURDIR)/debian/reload-vcl \
+		$(CURDIR)/debian/revsw-varnish4/usr/share/varnish/reload-vcl
+
+override_dh_installchangelogs:
+	dh_installchangelogs -XChangeLog doc/changes.html
+
+override_dh_installdocs:
+	dh_installdocs
+	@ # Use the packaged javascript libraries
+	if [ -d $(CURDIR)/debian/revsw-varnish4-doc ]; then \
+		rm -f $(CURDIR)/debian/revsw-varnish4-doc/usr/share/doc/revsw-varnish4-doc/html/_static/jquery.js; \
+		ln -s /usr/share/javascript/jquery/jquery.js \
+			$(CURDIR)/debian/revsw-varnish4-doc/usr/share/doc/revsw-varnish4-doc/html/_static/jquery.js; \
+		rm -f $(CURDIR)/debian/revsw-varnish4-doc/usr/share/doc/revsw-varnish4-doc/html/_static/underscore.js; \
+		ln -s /usr/share/javascript/underscore/underscore.js \
+			$(CURDIR)/debian/revsw-varnish4-doc/usr/share/doc/revsw-varnish4-doc/html/_static/underscore.js; \
+	fi
+
+override_dh_gencontrol:
+	echo "Varnish:ABI=$(VMOD_ABI)" >> debian/substvars
+
+	if [ -n "$$DEBIAN_OVERRIDE_BINARY_VERSION" ]; then \
+		dh_gencontrol -- -Tdebian/substvars -v$$DEBIAN_OVERRIDE_BINARY_VERSION; \
+	else \
+		dh_gencontrol -- -Tdebian/substvars; \
+	fi
+
+# Override to add several init scripts
+override_dh_installinit:
+	dh_installinit -a -R
+	dh_installinit --name=varnish4log
+	dh_installinit --name=varnish4ncsa
+
+override_dh_compress:
+	dh_compress -X/usr/share/doc/varnish-doc/html
+
+override_dh_strip:
+	dh_strip --dbg-package=revsw-varnish4-dbg

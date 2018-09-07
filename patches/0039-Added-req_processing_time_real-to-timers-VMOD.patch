@@ -1,0 +1,62 @@
+From 2082a7618c2a03e4be47f146a5ce26006ef859ca Mon Sep 17 00:00:00 2001
+From: sorinrevsw <sorin@revsw.com>
+Date: Wed, 8 Apr 2015 22:31:45 +0300
+Subject: [PATCH 39/63] Added 'req_processing_time_real' to 'timers' VMOD.
+
+---
+ debian/changelog                       |  6 ++++++
+ libvmod-timers-4.0/src/vmod_timers.c   | 13 +++++++++++++
+ libvmod-timers-4.0/src/vmod_timers.vcc |  1 +
+ 3 files changed, 20 insertions(+)
+
+diff --git a/debian/changelog b/debian/changelog
+index 429c6c9..df1a0c4 100644
+--- a/debian/changelog
++++ b/debian/changelog
+@@ -1,3 +1,9 @@
++revsw-varnish4-modules (0.5-7) unstable; urgency=medium
++
++  * Added 'req_processing_time_real' to 'timers' VMOD.
++
++ -- Sorin Otescu <sorin@revsw.com>  Wed, 08 Apr 2015 20:12:32 +0300
++
+ revsw-varnish4-modules (0.5-6) unstable; urgency=medium
+ 
+   * Different way of computing time in 'timers' VMOD.
+diff --git a/libvmod-timers-4.0/src/vmod_timers.c b/libvmod-timers-4.0/src/vmod_timers.c
+index 68943d7..e910717 100644
+--- a/libvmod-timers-4.0/src/vmod_timers.c
++++ b/libvmod-timers-4.0/src/vmod_timers.c
+@@ -210,6 +210,19 @@ vmod_req_processing_time( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
+     return (int) ((NOW - ctx->req->t_first) * cfg->multiplier);
+ }
+ 
++// Duration of Request headers received -> now.
++VCL_REAL
++vmod_req_processing_time_real( const struct vrt_ctx *ctx, struct vmod_priv *priv ) {
++    config_t *cfg   = priv->priv;
++
++    // The response may not have been sent yet (say you're calling this
++    // from vcl_recv) - Return -1 in that case.
++    if (isnan(ctx->req->t_first))
++        return -1;
++
++    return NOW - ctx->req->t_first;
++}
++
+ // Duration of First byte -> Last byte
+ // XXX since 'vcl_deliver' is the last point of entry for user facing code at
+ // the moment, the request will never be 'done' in the vcl users can access,
+diff --git a/libvmod-timers-4.0/src/vmod_timers.vcc b/libvmod-timers-4.0/src/vmod_timers.vcc
+index c0fa66c..15ecd7c 100644
+--- a/libvmod-timers-4.0/src/vmod_timers.vcc
++++ b/libvmod-timers-4.0/src/vmod_timers.vcc
+@@ -10,4 +10,5 @@ $Function TIME req_end_as_string(PRIV_VCL)
+ $Function INT req_handle_time(PRIV_VCL)
+ $Function INT req_response_time(PRIV_VCL)
+ $Function INT req_processing_time(PRIV_VCL)
++$Function REAL req_processing_time_real(PRIV_VCL)
+ $Function INT req_delivery_time(PRIV_VCL)
+-- 
+2.7.4
+

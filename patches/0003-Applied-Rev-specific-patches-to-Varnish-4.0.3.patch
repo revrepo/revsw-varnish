@@ -1,0 +1,766 @@
+From 32bc3b354b19128584325818cfe40ffd0ca9ab6c Mon Sep 17 00:00:00 2001
+From: sorinrevsw <sorin@revsw.com>
+Date: Mon, 25 May 2015 17:40:00 +0300
+Subject: [PATCH 03/63] Applied Rev-specific patches to Varnish 4.0.3.
+
+---
+ bin/varnishd/cache/cache.h             | 20 ++++++++
+ bin/varnishd/cache/cache_backend.c     | 19 +++++++-
+ bin/varnishd/cache/cache_backend_cfg.c | 52 ++++++++++++++++----
+ bin/varnishd/cache/cache_fetch.c       | 13 ++++-
+ bin/varnishd/cache/cache_http1_fsm.c   | 13 ++++-
+ bin/varnishd/cache/cache_req_fsm.c     | 10 ++--
+ doc/sphinx/Makefile.am                 |  4 +-
+ include/tbl/locks.h                    |  1 +
+ include/vrt.h                          |  5 ++
+ lib/libvcc/vcc_backend.c               | 87 +++++++++++++++++++++-------------
+ lib/libvcc/vcc_compile.h               |  4 +-
+ lib/libvcc/vcc_expr.c                  | 25 +++++++++-
+ lib/libvcc/vcc_utils.c                 | 45 ++++++++++++++++++
+ lib/libvmod_directors/Makefile.am      |  5 +-
+ lib/libvmod_directors/vmod.vcc         | 41 ++++++++++++++++
+ 15 files changed, 287 insertions(+), 57 deletions(-)
+
+diff --git a/bin/varnishd/cache/cache.h b/bin/varnishd/cache/cache.h
+index 660d6b7..74f9518 100644
+--- a/bin/varnishd/cache/cache.h
++++ b/bin/varnishd/cache/cache.h
+@@ -125,6 +125,7 @@ struct waitinglist;
+ struct worker;
+ struct wrw;
+ struct objiter;
++struct rev_vmod;
+ 
+ #define DIGEST_LEN		32
+ 
+@@ -173,6 +174,19 @@ struct ws {
+ };
+ 
+ /*--------------------------------------------------------------------
++ * RevSW: Per VMOD data. It is copied between req and bereq.
++ */
++
++typedef void* (*rev_vmod_dup_data_func)(struct ws *ws, void *data);
++
++struct rev_vmod {
++    unsigned		        magic;
++#define REV_VMOD_MAGIC		0x631cb1c3
++    void                    *data;
++    rev_vmod_dup_data_func  dup_data_func;
++};
++
++/*--------------------------------------------------------------------
+  * Ban info event types
+  */
+ 
+@@ -589,6 +603,9 @@ struct busyobj {
+ 	struct ws		ws_o[1];
+ 
+ 	struct vsb		*synth_body;
++
++    /* RevSW: revvar VMOD data, copied from req->vmod_revvar */
++    struct rev_vmod vmod_revvar;
+ };
+ 
+ /* Object structure --------------------------------------------------*/
+@@ -735,6 +752,9 @@ struct req {
+ 
+ 	/* Synth content in vcl_synth */
+ 	struct vsb		*synth_body;
++
++    /* RevSW: revvar VMOD data */
++    struct rev_vmod vmod_revvar;
+ };
+ 
+ /*--------------------------------------------------------------------
+diff --git a/bin/varnishd/cache/cache_backend.c b/bin/varnishd/cache/cache_backend.c
+index 6622f4b..31490e4 100644
+--- a/bin/varnishd/cache/cache_backend.c
++++ b/bin/varnishd/cache/cache_backend.c
+@@ -403,7 +403,8 @@ VRT_fini_dir(struct cli *cli, struct director *d)
+ 	struct vdi_simple *vs;
+ 
+ 	(void)cli;
+-	ASSERT_CLI();
++    /* RevSW: This can be called from the rev_dns director, from the recv thread */
++    //ASSERT_CLI();
+ 	CHECK_OBJ_NOTNULL(d, DIRECTOR_MAGIC);
+ 	CAST_OBJ_NOTNULL(vs, d->priv, VDI_SIMPLE_MAGIC);
+ 
+@@ -420,7 +421,8 @@ VRT_init_dir(struct cli *cli, struct director **bp, int idx, const void *priv)
+ 	const struct vrt_backend *t;
+ 	struct vdi_simple *vs;
+ 
+-	ASSERT_CLI();
++    /* RevSW: This can be called from the rev_dns director, from the recv thread */
++	//ASSERT_CLI();
+ 	(void)cli;
+ 	t = priv;
+ 
+@@ -442,6 +444,19 @@ VRT_init_dir(struct cli *cli, struct director **bp, int idx, const void *priv)
+ 	bp[idx] = &vs->dir;
+ }
+ 
++/* RevSW extension */
++const struct vrt_backend *
++VRT_get_backend(struct cli *cli, struct director *d)
++{
++    struct vdi_simple *vs;
++
++    (void)cli;
++    CHECK_OBJ_NOTNULL(d, DIRECTOR_MAGIC);
++    CAST_OBJ_NOTNULL(vs, d->priv, VDI_SIMPLE_MAGIC);
++
++    return vs->vrt;
++}
++
+ void
+ VDI_Init(void)
+ {
+diff --git a/bin/varnishd/cache/cache_backend_cfg.c b/bin/varnishd/cache/cache_backend_cfg.c
+index b7f6a8d..e8cf584 100644
+--- a/bin/varnishd/cache/cache_backend_cfg.c
++++ b/bin/varnishd/cache/cache_backend_cfg.c
+@@ -48,8 +48,24 @@
+ /*
+  * The list of backends is not locked, it is only ever accessed from
+  * the CLI thread, so there is no need.
++ *
++ * RevSW: That is no longer correct, we access this from the rev_dns
++ * director. Backends can be added from another thread too, while they are
++ * nuked only from the client thread.
+  */
+ static VTAILQ_HEAD(, backend) backends = VTAILQ_HEAD_INITIALIZER(backends);
++static struct lock backends_mtx;
++
++static void VBE_Lock(void)
++{
++    Lck_Lock(&backends_mtx);
++}
++
++static void VBE_Unlock(void)
++{
++    Lck_Unlock(&backends_mtx);
++}
++
+ 
+ /*--------------------------------------------------------------------
+  */
+@@ -58,7 +74,9 @@ static void
+ VBE_Nuke(struct backend *b)
+ {
+ 
+-	ASSERT_CLI();
++    /* RevSW: This can be called indirectly from the rev_dns director,
++       from the recv thread */
++    //ASSERT_CLI();
+ 	VTAILQ_REMOVE(&backends, b, list);
+ 	free(b->ipv4);
+ 	free(b->ipv4_addr);
+@@ -79,6 +97,8 @@ VBE_Poll(void)
+ 	struct backend *b, *b2;
+ 
+ 	ASSERT_CLI();
++
++    VBE_Lock();
+ 	VTAILQ_FOREACH_SAFE(b, &backends, list, b2) {
+ 		assert(
+ 			b->admin_health == ah_healthy ||
+@@ -88,6 +108,7 @@ VBE_Poll(void)
+ 		if (b->refcount == 0 && b->probe == NULL)
+ 			VBE_Nuke(b);
+ 	}
++    VBE_Unlock();
+ }
+ 
+ /*--------------------------------------------------------------------
+@@ -117,7 +138,9 @@ VBE_DropRefLocked(struct backend *b, const struct acct_bereq *acct_bereq)
+ 	if (i > 0)
+ 		return;
+ 
+-	ASSERT_CLI();
++    /* RevSW: This can be called indirectly from the rev_dns director,
++       from the recv thread */
++    //ASSERT_CLI();
+ 	VTAILQ_FOREACH_SAFE(vbe, &b->connlist, list, vbe2) {
+ 		VTAILQ_REMOVE(&b->connlist, vbe, list);
+ 		if (vbe->fd >= 0) {
+@@ -127,7 +150,9 @@ VBE_DropRefLocked(struct backend *b, const struct acct_bereq *acct_bereq)
+ 		vbe->backend = NULL;
+ 		VBE_ReleaseConn(vbe);
+ 	}
++    VBE_Lock();
+ 	VBE_Nuke(b);
++    VBE_Unlock();
+ }
+ 
+ void
+@@ -180,24 +205,29 @@ VBE_AddBackend(struct cli *cli, const struct vrt_backend *vb)
+ 	struct backend *b;
+ 	char buf[128];
+ 
+-	AN(vb->vcl_name);
++    AN(vb->vcl_name);
+ 	assert(vb->ipv4_suckaddr != NULL || vb->ipv6_suckaddr != NULL);
+ 	(void)cli;
+-	ASSERT_CLI();
+ 
+-	/* Run through the list and see if we already have this backend */
++    /* RevSW: Can also add backends through the rev_dns director in the recv thread */
++    //ASSERT_CLI();
++
++    VBE_Lock();
++
++    /* Run through the list and see if we already have this backend */
+ 	VTAILQ_FOREACH(b, &backends, list) {
+ 		CHECK_OBJ_NOTNULL(b, BACKEND_MAGIC);
+ 		if (strcmp(b->vcl_name, vb->vcl_name))
+ 			continue;
+-		if (vb->ipv4_suckaddr != NULL &&
++		if (b->ipv4 != NULL && vb->ipv4_suckaddr != NULL &&
+ 		    VSA_Compare(b->ipv4, vb->ipv4_suckaddr))
+ 			continue;
+-		if (vb->ipv6_suckaddr != NULL &&
++		if (b->ipv6 != NULL && vb->ipv6_suckaddr != NULL &&
+ 		    VSA_Compare(b->ipv6, vb->ipv6_suckaddr))
+ 			continue;
+ 		b->refcount++;
+ 		b->vsc->vcls++;
++        VBE_Unlock();
+ 		return (b);
+ 	}
+ 
+@@ -243,6 +273,7 @@ VBE_AddBackend(struct cli *cli, const struct vrt_backend *vb)
+ 
+ 	VTAILQ_INSERT_TAIL(&backends, b, list);
+ 	VSC_C_main->n_backend++;
++    VBE_Unlock();
+ 	return (b);
+ }
+ 
+@@ -343,6 +374,7 @@ backend_find(struct cli *cli, const char *matcher, bf_func *func, void *priv)
+ 		}
+ 	}
+ 
++    VBE_Lock();
+ 	for (all = 0; all < 2 && found == 0; all++) {
+ 		if (all == 0 && name_b == NULL)
+ 			continue;
+@@ -364,10 +396,13 @@ backend_find(struct cli *cli, const char *matcher, bf_func *func, void *priv)
+ 				continue;
+ 			found++;
+ 			i = func(cli, b, priv);
+-			if (i)
++			if (i) {
++                VBE_Unlock();
+ 				return (i);
++			}
+ 		}
+ 	}
++    VBE_Unlock();
+ 	return (found);
+ }
+ 
+@@ -485,6 +520,7 @@ static struct cli_proto backend_cmds[] = {
+ void
+ VBE_InitCfg(void)
+ {
++    Lck_New(&backends_mtx , lck_cache_backends);
+ 
+ 	CLI_AddFuncs(backend_cmds);
+ }
+diff --git a/bin/varnishd/cache/cache_fetch.c b/bin/varnishd/cache/cache_fetch.c
+index 3308ae6..ca5e8d8 100644
+--- a/bin/varnishd/cache/cache_fetch.c
++++ b/bin/varnishd/cache/cache_fetch.c
+@@ -187,11 +187,22 @@ vbf_stp_mkbereq(const struct worker *wrk, struct busyobj *bo)
+ 	AZ(bo->vbc);
+ 	AZ(bo->should_close);
+ 	AZ(bo->storage_hint);
++    AZ(bo->vmod_revvar.data);
++    AZ(bo->vmod_revvar.dup_data_func);
+ 
+ 	HTTP_Setup(bo->bereq0, bo->ws, bo->vsl, SLT_BereqMethod);
+ 	http_FilterReq(bo->bereq0, bo->req->http,
+ 	    bo->do_pass ? HTTPH_R_PASS : HTTPH_R_FETCH);
+ 
++    /* RevSW: copy 'revvar' VMOD data from 'req' to 'bo', to be able to
++       access it in 'vcl_backend_response'. */
++    if (bo->req->vmod_revvar.data && bo->req->vmod_revvar.dup_data_func) {
++        bo->vmod_revvar = bo->req->vmod_revvar;
++        /* Copy 'data' to our own ws.*/
++        bo->vmod_revvar.data =
++            bo->vmod_revvar.dup_data_func(bo->ws, bo->vmod_revvar.data);
++    }
++
+ 	if (!bo->do_pass) {
+ 		http_ForceField(bo->bereq0, HTTP_HDR_METHOD, "GET");
+ 		http_ForceField(bo->bereq0, HTTP_HDR_PROTO, "HTTP/1.1");
+@@ -292,7 +303,7 @@ vbf_stp_startfetch(struct worker *wrk, struct busyobj *bo)
+ 		AZ(bo->req);
+ 
+ 	http_PrintfHeader(bo->bereq,
+-	    "X-Varnish: %u", bo->vsl->wid & VSL_IDENTMASK);
++	    "X-Rev-Id: %u", bo->vsl->wid & VSL_IDENTMASK);
+ 
+ 
+ 	VCL_backend_fetch_method(bo->vcl, wrk, NULL, bo, bo->bereq->ws);
+diff --git a/bin/varnishd/cache/cache_http1_fsm.c b/bin/varnishd/cache/cache_http1_fsm.c
+index b398dc2..f9992ee 100644
+--- a/bin/varnishd/cache/cache_http1_fsm.c
++++ b/bin/varnishd/cache/cache_http1_fsm.c
+@@ -151,9 +151,20 @@ http1_wait(struct sess *sp, struct worker *wrk, struct req *req)
+ 			}
+ 		} else {
+ 			/* Working on it */
+-			if (isnan(req->t_first))
++			if (isnan(req->t_first)) {
++				/* Let's see if we were already too late before getting these bytes */
++				when = sp->t_idle + cache_param->timeout_idle;
++				if (when < now) {
++					why = SC_RX_TIMEOUT;
++					break;
++				}
++
+ 				/* Record first byte received time stamp */
+ 				req->t_first = now;
++			}
++
++			/* We have to receive the full request header in timeout_req from the
++			   first non-whitespace byte */
+ 			when = req->t_first + cache_param->timeout_req;
+ 			tmo = (int)(1e3 * (when - now));
+ 			if (when < now || tmo == 0) {
+diff --git a/bin/varnishd/cache/cache_req_fsm.c b/bin/varnishd/cache/cache_req_fsm.c
+index 40551f7..9b38b7d 100644
+--- a/bin/varnishd/cache/cache_req_fsm.c
++++ b/bin/varnishd/cache/cache_req_fsm.c
+@@ -108,11 +108,11 @@ cnt_deliver(struct worker *wrk, struct req *req)
+ 
+ 	if (req->wrk->stats.cache_hit)
+ 		http_PrintfHeader(req->resp,
+-		    "X-Varnish: %u %u", req->vsl->wid & VSL_IDENTMASK,
++		    "X-Rev-Id: %u %u", req->vsl->wid & VSL_IDENTMASK,
+ 		    req->obj->vxid & VSL_IDENTMASK);
+ 	else
+ 		http_PrintfHeader(req->resp,
+-		    "X-Varnish: %u", req->vsl->wid & VSL_IDENTMASK);
++		    "X-Rev-Id: %u", req->vsl->wid & VSL_IDENTMASK);
+ 
+ 	/* We base Age calculation upon the last timestamp taken during
+ 	   client request processing. This gives some inaccuracy, but
+@@ -124,7 +124,7 @@ cnt_deliver(struct worker *wrk, struct req *req)
+ 	http_PrintfHeader(req->resp, "Age: %.0f",
+ 	    fmax(0., req->t_prev - req->obj->exp.t_origin));
+ 
+-	http_SetHeader(req->resp, "Via: 1.1 varnish-v4");
++	http_SetHeader(req->resp, "Via: 1.1 rev-cache");
+ 
+ 	if (cache_param->http_gzip_support && req->obj->gziped &&
+ 	    !RFC2616_Req_Gzip(req->http))
+@@ -232,7 +232,7 @@ cnt_synth(struct worker *wrk, struct req *req)
+ 	http_PrintfHeader(h, "Date: %s", date);
+ 	http_SetHeader(h, "Server: Varnish");
+ 	http_PrintfHeader(req->resp,
+-	    "X-Varnish: %u", req->vsl->wid & VSL_IDENTMASK);
++	    "X-Rev-Id: %u", req->vsl->wid & VSL_IDENTMASK);
+ 	http_PutResponse(h, "HTTP/1.1", req->err_code, req->err_reason);
+ 
+ 	AZ(req->synth_body);
+@@ -613,7 +613,7 @@ cnt_pipe(struct worker *wrk, struct req *req)
+ 	VSLb(bo->vsl, SLT_Begin, "bereq %u pipe", req->vsl->wid & VSL_IDENTMASK);
+ 	http_FilterReq(bo->bereq, req->http, 0);	// XXX: 0 ?
+ 	http_PrintfHeader(bo->bereq,
+-	    "X-Varnish: %u", req->vsl->wid & VSL_IDENTMASK);
++	    "X-Rev-Id: %u", req->vsl->wid & VSL_IDENTMASK);
+ 	http_SetHeader(bo->bereq, "Connection: close");
+ 
+ 	VCL_pipe_method(req->vcl, wrk, req, bo, req->http->ws);
+diff --git a/doc/sphinx/Makefile.am b/doc/sphinx/Makefile.am
+index 31eed38..65278d7 100644
+--- a/doc/sphinx/Makefile.am
++++ b/doc/sphinx/Makefile.am
+@@ -28,7 +28,7 @@ help:
+ 	@echo "  doctest   to run all doctests embedded in the documentation (if enabled)"
+ 
+ clean:
+-	-rm -rf $(BUILDDIR)/*
++#	-rm -rf $(BUILDDIR)/*
+ 
+ html:
+ 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+@@ -107,7 +107,7 @@ dist-hook:
+ 	find $(distdir) -mindepth 2 -type f ! -name \*.rst | grep -v '/build/' | xargs rm -f
+ 
+ distclean-local:
+-	rm -rf $(BUILDDIR)
++#	rm -rf $(BUILDDIR)
+ 
+ include/params.rst: $(top_builddir)/bin/varnishd/varnishd
+ 	$(top_builddir)/bin/varnishd/varnishd -x dumprstparam > include/params.rst
+diff --git a/include/tbl/locks.h b/include/tbl/locks.h
+index 1a01782..3996a36 100644
+--- a/include/tbl/locks.h
++++ b/include/tbl/locks.h
+@@ -54,4 +54,5 @@ LOCK(busyobj)
+ LOCK(mempool)
+ LOCK(vxid)
+ LOCK(pipestat)
++LOCK(cache_backends)
+ /*lint -restore */
+diff --git a/include/vrt.h b/include/vrt.h
+index e7939aa..a743f55 100644
+--- a/include/vrt.h
++++ b/include/vrt.h
+@@ -157,6 +157,7 @@ struct vrt_backend {
+ 	const char			*vcl_name;
+ 	const char			*ipv4_addr;
+ 	const char			*ipv6_addr;
++    const char			*host;
+ 	const char			*port;
+ 
+ 	const struct suckaddr		*ipv4_suckaddr;
+@@ -227,6 +228,10 @@ void VRT_synth_page(VRT_CTX, const char *, ...);
+ void VRT_init_dir(struct cli *, struct director **, int idx, const void *priv);
+ void VRT_fini_dir(struct cli *, struct director *);
+ 
++/* RevSW: get the VCL backend from a simple director */
++const struct vrt_backend *
++VRT_get_backend(struct cli *, struct director *);
++
+ /* Suckaddr related */
+ int VRT_VSA_GetPtr(const struct suckaddr *sua, const unsigned char ** dst);
+ 
+diff --git a/lib/libvcc/vcc_backend.c b/lib/libvcc/vcc_backend.c
+index 7c079a9..45e6f15 100644
+--- a/lib/libvcc/vcc_backend.c
++++ b/lib/libvcc/vcc_backend.c
+@@ -44,37 +44,51 @@
+  */
+ 
+ static void
+-Emit_Sockaddr(struct vcc *tl, const struct token *t_host, const char *port)
++Emit_Sockaddr(struct vcc *tl, const struct token *t_host, const char *port,
++              unsigned resolve)
+ {
+ 	const char *ipv4, *ipv4a, *ipv6, *ipv6a, *pa;
+ 	const char *err;
+ 	char *hop, *pop;
+ 
+-	AN(t_host->dec);
+-
+-	err = VSS_parse(t_host->dec, &hop, &pop);
+-	if (err != NULL) {
+-		VSB_printf(tl->sb,
+-		    "Backend host '%.*s': %s\n", PF(t_host), err);
+-		vcc_ErrWhere(tl, t_host);
+-		return;
+-	}
+-	Resolve_Sockaddr(tl,
+-	    hop != NULL ? hop : t_host->dec,
+-	    pop != NULL ? pop : port,
+-	    &ipv4, &ipv4a, &ipv6, &ipv6a, &pa, 2, t_host, "Backend host");
+-	ERRCHK(tl);
+-	if (ipv4 != NULL) {
+-		Fb(tl, 0, "\t.ipv4_suckaddr = (const struct suckaddr *)%s,\n",
+-		    ipv4);
+-		Fb(tl, 0, "\t.ipv4_addr = \"%s\",\n", ipv4a);
+-	}
+-	if (ipv6 != NULL) {
+-		Fb(tl, 0, "\t.ipv6_suckaddr = (const struct suckaddr *)%s,\n",
+-		    ipv6);
+-		Fb(tl, 0, "\t.ipv6_addr = \"%s\",\n", ipv6a);
+-	}
+-	Fb(tl, 0, "\t.port = \"%s\",\n", pa);
++    AN(t_host->dec);
++
++    err = VSS_parse(t_host->dec, &hop, &pop);
++    if (err != NULL) {
++        VSB_printf(tl->sb,
++            "Backend host '%.*s': %s\n", PF(t_host), err);
++        vcc_ErrWhere(tl, t_host);
++        return;
++    }
++
++    if (resolve) {
++        Resolve_Sockaddr(tl,
++            hop != NULL ? hop : t_host->dec,
++            pop != NULL ? pop : port,
++            &ipv4, &ipv4a, &ipv6, &ipv6a, &pa, 2, t_host, "Backend host");
++        ERRCHK(tl);
++        if (ipv4 != NULL) {
++            Fb(tl, 0, "\t.ipv4_suckaddr = (const struct suckaddr *)%s,\n",
++                ipv4);
++            Fb(tl, 0, "\t.ipv4_addr = \"%s\",\n", ipv4a);
++        }
++        if (ipv6 != NULL) {
++            Fb(tl, 0, "\t.ipv6_suckaddr = (const struct suckaddr *)%s,\n",
++                ipv6);
++            Fb(tl, 0, "\t.ipv6_addr = \"%s\",\n", ipv6a);
++        }
++        Fb(tl, 0, "\t.port = \"%s\",\n", pa);
++    }
++    else {
++        /* RevSW: Use an invalid IPv4 sockaddress (we need a non-zero
++           ipv4_suckaddr in rev_dns).
++           However, save the host and port for later resolution. */
++        Emit_Invalid_Sockaddr(tl);
++        Fb(tl, 0, "\t.ipv4_suckaddr = (const struct suckaddr *)(const void*)sockaddr_invalid4,\n");
++        Fb(tl, 0, "\t.ipv6_suckaddr = (const struct suckaddr *)(const void*)sockaddr_invalid6,\n");
++        Fb(tl, 0, "\t.host = \"%s\",\n", hop != NULL ? hop : t_host->dec);
++        Fb(tl, 0, "\t.port = \"%s\",\n", pop != NULL ? pop : port);
++    }
+ }
+ 
+ /*--------------------------------------------------------------------
+@@ -280,6 +294,7 @@ vcc_ParseHostDef(struct vcc *tl, const struct token *t_be)
+ 	unsigned u;
+ 	double t;
+ 	char vgcname[MAX_BACKEND_NAME + 8];
++    unsigned resolve_host = 1;
+ 
+ 	sprintf(vgcname, "_%.*s", PF(t_be));
+ 
+@@ -294,6 +309,7 @@ vcc_ParseHostDef(struct vcc *tl, const struct token *t_be)
+ 	    "?between_bytes_timeout",
+ 	    "?probe",
+ 	    "?max_connections",
++        "?preresolve_dns",
+ 	    NULL);
+ 
+ 	SkipToken(tl, '{');
+@@ -381,23 +397,28 @@ vcc_ParseHostDef(struct vcc *tl, const struct token *t_be)
+ 			VSB_printf(tl->sb, " at\n");
+ 			vcc_ErrWhere(tl, tl->t);
+ 			return;
++        } else if (vcc_IdIs(t_field, "preresolve_dns")) {
++            // RevSW: dynamic DNS resolution instead of compiled-in
++            u = vcc_UintVal(tl);
++            ERRCHK(tl);
++            SkipToken(tl, ';');
++            resolve_host = u;
+ 		} else {
+ 			ErrInternal(tl);
+ 			return;
+ 		}
+-
+ 	}
+ 
+ 	vcc_FieldsOk(tl, fs);
+ 	ERRCHK(tl);
+ 
+ 	/* Check that the hostname makes sense */
+-	assert(t_host != NULL);
+-	if (t_port != NULL)
+-		Emit_Sockaddr(tl, t_host, t_port->dec);
+-	else
+-		Emit_Sockaddr(tl, t_host, "80");
+-	ERRCHK(tl);
++    assert(t_host != NULL);
++    if (t_port != NULL)
++        Emit_Sockaddr(tl, t_host, t_port->dec, resolve_host);
++    else
++        Emit_Sockaddr(tl, t_host, "80", resolve_host);
++    ERRCHK(tl);
+ 
+ 	ExpectErr(tl, '}');
+ 
+diff --git a/lib/libvcc/vcc_compile.h b/lib/libvcc/vcc_compile.h
+index 128916b..0e466c6 100644
+--- a/lib/libvcc/vcc_compile.h
++++ b/lib/libvcc/vcc_compile.h
+@@ -201,6 +201,7 @@ struct vcc {
+ 	struct token		*t_defaultdir;
+ 
+ 	unsigned		unique;
++    unsigned        emitted_invalid_sockaddr;    /* RevSW: invalid IPv4 addr for rev_dns */
+ 
+ 	unsigned		err_unref;
+ 	unsigned		allow_inline_c;
+@@ -234,7 +235,7 @@ void vcc_Acl_Hack(struct vcc *tl, char *b);
+ int vcc_ParseAction(struct vcc *tl);
+ 
+ /* vcc_backend.c */
+-#define MAX_BACKEND_NAME	64
++#define MAX_BACKEND_NAME	128
+ struct fld_spec;
+ 
+ void vcc_ParseProbe(struct vcc *tl);
+@@ -296,6 +297,7 @@ void Resolve_Sockaddr(struct vcc *tl, const char *host, const char *port, \
+     const char **ipv4, const char **ipv4_ascii, const char **ipv6, \
+     const char **ipv6_ascii, const char **p_ascii, int maxips,
+     const struct token *t_err, const char *errid);
++void Emit_Invalid_Sockaddr(struct vcc *tl);
+ 
+ /* vcc_symb.c */
+ struct symbol *VCC_AddSymbolStr(struct vcc *tl, const char *name, enum symkind);
+diff --git a/lib/libvcc/vcc_expr.c b/lib/libvcc/vcc_expr.c
+index f18b39c..8b8ace4 100644
+--- a/lib/libvcc/vcc_expr.c
++++ b/lib/libvcc/vcc_expr.c
+@@ -668,7 +668,7 @@ vcc_Eval_SymFunc(struct vcc *tl, struct expr **e, const struct symbol *sym)
+ static void
+ vcc_expr4(struct vcc *tl, struct expr **e, enum var_type fmt)
+ {
+-	struct expr *e1, *e2;
++	struct expr *e1, *e2, *e3;
+ 	const char *ip;
+ 	const struct symbol *sym;
+ 	double d;
+@@ -684,7 +684,28 @@ vcc_expr4(struct vcc *tl, struct expr **e, enum var_type fmt)
+ 		return;
+ 	}
+ 	switch(tl->t->tok) {
+-	case ID:
++    case ID:
++        /* RevSW: add support for 'if(expr, expr_if_true, expr_if_false)' */
++        if (vcc_IdIs(tl->t, "if")) {
++            SkipToken(tl, ID);
++            SkipToken(tl, '(');
++            vcc_expr0(tl, &e1, BOOL);
++            ERRCHK(tl);
++
++            SkipToken(tl, ',');
++            e2 = NULL;
++            vcc_expr0(tl, &e2, fmt);
++            ERRCHK(tl);
++            SkipToken(tl, ',');
++            e3 = NULL;
++            vcc_expr0(tl, &e3, fmt);
++            SkipToken(tl, ')');
++
++            e2 = vcc_expr_edit(fmt, "(\v1) : (\v2)", e2, e3);
++            *e = vcc_expr_edit(fmt, "((\v1) ? \v2)", e1, e2);
++            return;
++        }
++
+ 		/*
+ 		 * XXX: what if var and func/proc had same name ?
+ 		 * XXX: look for SYM_VAR first for consistency ?
+diff --git a/lib/libvcc/vcc_utils.c b/lib/libvcc/vcc_utils.c
+index bfcc2d5..5cd1d06 100644
+--- a/lib/libvcc/vcc_utils.c
++++ b/lib/libvcc/vcc_utils.c
+@@ -262,3 +262,48 @@ Resolve_Sockaddr(struct vcc *tl,
+ 		vcc_ErrWhere(tl, t_err);
+ 	}
+ }
++
++void Emit_Invalid_Sockaddr(struct vcc *tl)
++{
++	const int sz = sizeof(unsigned long long);
++	const unsigned n = (vsa_suckaddr_len + sz - 1) / sz;
++	unsigned len;
++    unsigned long long b[n];
++    struct suckaddr *sua;
++    struct sockaddr_in sin;
++    struct sockaddr_in6 sin6;
++
++    if (tl->emitted_invalid_sockaddr)
++        return;
++
++    memset(&sin, 0, sizeof(sin));
++    sin.sin_family = AF_INET;
++
++    sua = VSA_Malloc(&sin, sizeof(sin));
++    AN(sua);
++    memcpy(b, sua, vsa_suckaddr_len);
++    free(sua);
++    Fh(tl, 0, "static const unsigned long long");
++    Fh(tl, 0, " sockaddr_invalid4[%d] = {\n", n);
++    for (len = 0; len < n; len++)
++        Fh(tl, 0, "%s    0x%0*llxLL",
++            len ? ",\n" : "", sz * 2, b[len]);
++    Fh(tl, 0, "\n};\n");
++
++    memset(&sin6, 0, sizeof(sin6));
++    sin6.sin6_family = AF_INET6;
++
++    sua = VSA_Malloc(&sin6, sizeof(sin6));
++    AN(sua);
++    memcpy(b, sua, vsa_suckaddr_len);
++    free(sua);
++	Fh(tl, 0, "static const unsigned long long");
++	Fh(tl, 0, " sockaddr_invalid6[%d] = {\n", n);
++    for (len = 0; len < n; len++)
++        Fh(tl, 0, "%s    0x%0*llxLL",
++            len ? ",\n" : "", sz * 2, b[len]);
++    Fh(tl, 0, "\n};\n");
++
++	tl->emitted_invalid_sockaddr = 1;
++}
++
+diff --git a/lib/libvmod_directors/Makefile.am b/lib/libvmod_directors/Makefile.am
+index 64b72a8..cb239bf 100644
+--- a/lib/libvmod_directors/Makefile.am
++++ b/lib/libvmod_directors/Makefile.am
+@@ -20,14 +20,15 @@ libvmod_directors_la_SOURCES = \
+ 	fall_back.c \
+ 	hash.c \
+ 	random.c \
+-	round_robin.c
++	round_robin.c \
++	rev_dns.c
+ 
+ nodist_libvmod_directors_la_SOURCES = \
+ 	vcc_if.c \
+ 	vcc_if.h
+ 
+ # BUILT_SOURCES is only a hack and dependency tracking does not help for the first build
+-vdir.lo fall_back.lo hash.lo random.lo round_robin.lo: vcc_if.h
++vdir.lo fall_back.lo hash.lo random.lo round_robin.lo rev_dns.lo: vcc_if.h
+ 
+ vcc_if.c vcc_if.h vmod_directors.rst vmod_directors.man.rst: $(vmodtool) $(vmod_srcdir)/vmod.vcc
+ 	@PYTHON@ $(vmodtool) $(vmodtoolargs) $(vmod_srcdir)/vmod.vcc
+diff --git a/lib/libvmod_directors/vmod.vcc b/lib/libvmod_directors/vmod.vcc
+index bbfa0eb..be2c4f9 100644
+--- a/lib/libvmod_directors/vmod.vcc
++++ b/lib/libvmod_directors/vmod.vcc
+@@ -183,3 +183,44 @@ Description
+ Example
+ 	set req.backend_hint = vdir.backend(req.http.cookie);  # pick a backend based on the cookie header from the client
+ 
++
++$Object rev_dns()
++
++Description
++	Create a Rev DNS backend director.
++
++	The Rev DNS director resolves the address of its only backend dynamically.
++	If multiple addresses are returned, it will act as a round_robin director
++	between all of them (if they are healthy).
++	The TTL of the DNS result is respected.
++
++Example
++	new vdir = directors.rev_dns();
++
++$Method VOID .set_max_dns_ttl(DURATION)
++
++Description
++	Set the maximum TTL of the DNS query result.
++
++	By default, the maximum TTL is one hour.
++
++Example
++	vdir.set_max_dns_ttl(10s);
++
++$Method BOOL .set_backend(BACKEND)
++
++Description
++	Set the backend whose address is resolved by the director.
++
++	The backend must have the 'preresolve_dns' parameter set to 1.
++
++Example
++	vdir.set_backend(backend);
++
++
++$Method BACKEND .backend()
++
++Description
++	Pick a backend from the director.
++Example
++	set req.backend_hint = vdir.backend();
+-- 
+2.7.4
+

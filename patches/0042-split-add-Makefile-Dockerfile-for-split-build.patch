@@ -1,0 +1,235 @@
+From 0f178f8006c459dd81f81d5f91e4b125e2b777cb Mon Sep 17 00:00:00 2001
+From: Igor <igor@pbne.mygbiz.com>
+Date: Thu, 29 Oct 2015 19:45:31 +0100
+Subject: [PATCH 42/63] split: add Makefile,Dockerfile for split build
+
+---
+ Dockerfile                 | 36 ++++++++++++++++++++++++
+ Makefile                   | 56 +++++++++++++++++++++++++++++++++++++
+ debs/.gitignore            |  2 ++
+ docker-inside-init.sh      | 18 ++++++++++++
+ revsw-opensource-common.mk | 70 ++++++++++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 182 insertions(+)
+ create mode 100644 Dockerfile
+ create mode 100644 Makefile
+ create mode 100644 debs/.gitignore
+ create mode 100755 docker-inside-init.sh
+ create mode 100644 revsw-opensource-common.mk
+
+diff --git a/Dockerfile b/Dockerfile
+new file mode 100644
+index 0000000..ea35cf8
+--- /dev/null
++++ b/Dockerfile
+@@ -0,0 +1,36 @@
++FROM ubuntu:14.04
++
++MAINTAINER Igor Kukushkin <igor@pbne.mygbiz.com>
++
++#ADD .pbuilderrc /tmp/.pbuilderrc
++RUN apt-get update && apt-get -y install build-essential pbuilder autoconf automake debhelper dh-virtualenv debootstrap devscripts libtool pkg-config nano git equivs \
++binfmt-support clang clang-3.4 fontconfig-config fonts-dejavu-core geoip-bin \
++  geoip-database libclang-common-3.4-dev libclang1-3.4 libexpat1-dev \
++  libffi-dev libfontconfig1 libfontconfig1-dev libfreetype6 libfreetype6-dev \
++  libgd-dev libgd2-noxpm-dev libgd3 libgeoip-dev libgeoip1 libice-dev libice6 \
++  libjbig-dev libjbig0 libjpeg-dev libjpeg-turbo8 libjpeg-turbo8-dev libjpeg8 \
++  libjpeg8-dev libllvm3.4 liblua5.1-0 liblua5.1-0-dev liblzma-dev libmhash-dev \
++  libmhash2 libobjc-4.8-dev libobjc4 libpam0g-dev libpcre3-dev libpcrecpp0 \
++  libperl-dev libperl5.18 libpng12-dev libpthread-stubs0-dev libreadline-dev \
++  libreadline6-dev libsm-dev libsm6 libssl-dev libssl-doc libtiff5 \
++  libtiff5-dev libtiffxx5 libtinfo-dev libvpx-dev libvpx1 libx11-dev \
++  libx11-doc libxau-dev libxcb1-dev libxdmcp-dev libxml2-dev libxpm-dev \
++  libxpm4 libxslt1-dev libxslt1.1 libxt-dev libxt6 llvm-3.4 llvm-3.4-dev \
++  llvm-3.4-runtime x11-common x11proto-core-dev x11proto-input-dev \
++  x11proto-kb-dev xorg-sgml-doctools xtrans-dev zlib1g-dev \
++  autopoint dh-autoreconf dh-systemd docutils-common docutils-doc libbsd-dev \
++  libedit-dev libjemalloc-dev libjemalloc1 liblcms2-2 libncurses5-dev \
++  libpaper-utils libpaper1 libwebp5 libwebpmux1 python-docutils python-pil \
++  python-pygments python-roman xsltproc
++
++# RUN mkdir -p /home/jenkins && cp /tmp/.pbuilderrc /home/jenkins/ && cp /tmp/.pbuilderrc /root && mkdir -p /home/jenkins/workspace/Proxy_Build/enzo/ubuntu-pkg/pkg_build
++RUN pip install git-up && pip install dnspython && pip install jinja2 && pip install jsonschema
++
++ADD docker-inside-init.sh /docker-inside-init.sh
++
++ENTRYPOINT ["/docker-inside-init.sh"] 
++
++# How to use:
++#  docker build -t revsw/pbuilder .
++#  docker run -ti --privileged --name pbuilder -v /work/igorastds/rev/eng:/home/jenkins/workspace/Proxy_Build/ -w /home/jenkins/workspace/Proxy_Build/ revsw/pbuilder
++# when container will enable shell access, run "cd docker; sh eng-build.sh" from it
+diff --git a/Makefile b/Makefile
+new file mode 100644
+index 0000000..b85084f
+--- /dev/null
++++ b/Makefile
+@@ -0,0 +1,56 @@
++include revsw-opensource-common.mk
++
++VARN4_SRC=varnish-4.0.3
++VARM4_SRC=varnish4-vmods
++
++.PHONY: varnish4-set-version varnish4 varnish4pkg varnish4vmods varnish4vmods-pkg check-varnish-repo undo-varnish-ver undo-vmod-ver docker
++
++undo-varnish4-ver: CHANGELOG=$(VARN4_SRC)/debian/changelog
++undo-varnish4-ver: undo-version
++
++undo-vmod-ver: CHANGELOG=$(VARM4_SRC)/debian/changelog
++undo-vmod-ver: undo-version
++
++varnish4-set-version: VER_GREP_STRN=revsw-varnish4 (4.0.3-$(BUILD_MINOR))
++varnish4-set-version: VER_TEMP_FILE=/tmp/varnish4.changes.$(shell date +%s)
++varnish4-set-version: VER_CHANGELOG=$(VARN4_SRC)/debian/changelog
++varnish4-set-version: set-version
++
++varnish4-pkg: varnish4-set-version check-varnish-repo
++	cd $(VARN4_SRC)/ && mk-build-deps -i -t "apt-get -y"  && dpkg-buildpackage -d -uc
++	mkdir -p $(DEBS)/ && mv revsw-*varnish4*.* $(DEBS)/ && chmod 666 $(DEBS)/*.*
++
++varnish4: docker
++	@if [ ! -f $(DEBSINSIDE)/revsw-varnish4_4.0.3-$(BUILD_MINOR)_amd64.deb ]; then echo "no proper deb in debs"; ($(WRAPPER) make -f $(MAKEF) varnish4-pkg BUILD_MINOR=$(BUILD_MINOR) || $(WRAPPER) make -f $(MAKEF) undo-varnish4-ver clean); \
++	else \
++		if [ $(shell find $(VARN4_SRC)/ -newer $(DEBSINSIDE)/revsw-varnish4_4.0.3-$(BUILD_MINOR)_amd64.deb 2>/dev/null | wc -l) -gt 0 ]; then \
++			rm -f "$(DEBS)/revsw-varnish4-*.*"; \
++			(($(WRAPPER) make -f $(MAKEF) varnish4-pkg undo-varnish4-ver BUILD_MINOR=$(BUILD_MINOR); $(WRAPPER) make -f $(MAKEF) clean) || $(WRAPPER) make -f $(MAKEF) undo-varnish4-ver; false); \
++		else \
++		     echo "skipping varnish4"; \
++		fi \
++	fi
++
++varnish4vmods-set-version: VER_GREP_STRN=revsw-varnish4-modules (4.0.3-$(BUILD_MINOR))
++varnish4vmods-set-version: VER_TEMP_FILE=/tmp/varnish4mods.changes.$(shell date +%s)
++varnish4vmods-set-version: VER_CHANGELOG=$(VARM4_SRC)/debian/changelog
++varnish4vmods-set-version: set-version
++
++varnish4vmods-pkg: varnish4vmods-set-version varnish4-pkg check-varnish-repo
++	cd $(VARM4_SRC)/ && mk-build-deps -i -t "apt-get -y" && dpkg-buildpackage -d -uc
++	mkdir -p $(DEBS)/ && mv revsw-varn*.* $(DEBS)/ && chmod 666 $(DEBS)/*.*
++
++varnish4vmods: docker
++	@if [ ! -f $(DEBSINSIDE)/revsw-varnish4-mods-$(BUILD_MINOR)_amd64.deb ]; then \
++		echo "no proper deb in debs"; ($(WRAPPER) make -f $(MAKEF) varnish4vmods-pkg BUILD_MINOR=$(BUILD_MINOR) || $(WRAPPER) make -f $(MAKEF) undo-vmod-ver clean; false); \
++	else \
++		if [ $(shell find $(VARM4_SRC)/ -newer $(DEBSINSIDE)/revsw-varnish4-mods-$(BUILD_MINOR).deb 2>/dev/null | wc -l) -gt 0 ]; then \
++			rm -f $(DEBS)/revsw4-varnish4-mods*.*; \
++			($(WRAPPER) make -f $(MAKEF) varnish4vmods-pkg undo-vmod-ver BUILD_MINOR=$(BUILD_MINOR); $(WRAPPER) make -f $(MAKEF) clean || $(WRAPPER) make -f $(MAKEF) undo-vmod-ver); \
++		else\
++	    	echo "skipping varnish-vmods";\
++		fi \
++	fi
++
++
++all: varnish4 varnish4vmods
+\ No newline at end of file
+diff --git a/debs/.gitignore b/debs/.gitignore
+new file mode 100644
+index 0000000..92ec35a
+--- /dev/null
++++ b/debs/.gitignore
+@@ -0,0 +1,2 @@
++# Builds:
++*
+\ No newline at end of file
+diff --git a/docker-inside-init.sh b/docker-inside-init.sh
+new file mode 100755
+index 0000000..6331389
+--- /dev/null
++++ b/docker-inside-init.sh
+@@ -0,0 +1,18 @@
++#!/bin/bash
++if [ -f /.built ]; then
++	echo "RevSW Docker/PBuilder container: already initialized";
++	bash
++	bash -c "$@"
++	exit
++else
++## 10-29: We do'nt use PBuilder anymore, docker is required only for avoid root access on Jenkins
++##	echo "RevSW Docker/PBuilder container: need to build PBuilder baseimage"
++##
++##	mkdir -p /home/jenkins/workspace/Proxy_Build/enzo/ubuntu-pkg/pkg_build/
++##	touch /home/jenkins/workspace/Proxy_Build/enzo/ubuntu-pkg/pkg_build/Packages
++##	pbuilder create --debootstrapopts --variant=buildd || exit 1
++	touch /.built
++fi
++
++echo "RevSW Docker/PBuilder container: running $@"
++exec $@
+diff --git a/revsw-opensource-common.mk b/revsw-opensource-common.mk
+new file mode 100644
+index 0000000..a436c78
+--- /dev/null
++++ b/revsw-opensource-common.mk
+@@ -0,0 +1,70 @@
++BUILD_MINOR?=1
++DEBSINSIDE?=debs
++DEBS?=/work/$(DEBSINSIDE)
++MAKEF=$(word 1,$(MAKEFILE_LIST))
++DATE_STAMP=$(shell date "+%a, %d %b %Y %H:%M:%S %z")
++DIR=$(shell pwd)
++DOCKER_BIN=docker
++# set it to -ti when doing non-Jenkins build
++INTERACTIVE?=
++DOCKER=docker run --rm $(INTERACTIVE) -v $(DIR):/work -w /work -e IN_DOCKER=true $(BUILDER)
++#WRAPPER=$(DOCKER)
++WRAPPER=sudo
++BUILDER=revsw_proxy_builder_v6
++
++docker: 
++ifeq ($(IN_DOCKER),"true")
++	@echo "Inside docker: skipping container check."
++else
++
++	@/bin/sh -c 'export x=`$(DOCKER_BIN) images -a|grep $(BUILDER)|wc -l` || x=wtf; if [ $$x -lt 1 ]; then false; fi' || (echo "Have to rebuild $(BUILDER)"; $(DOCKER_BIN) build -t $(BUILDER) -f Dockerfile .)
++endif
++
++CHANGELOG=/dev/null
++undo-version:
++	@git checkout $(CHANGELOG)
++
++VER_TEMP_FILE=/dev/null
++VER_GREP_STRN="null (0.0.0-$(BUILD_MINOR))"
++VER_CHANGELOG=/dev/null
++set-version:        
++	echo "Checking version: $(VER_GREP_STRN)"
++	@if [ $(shell grep "$(VER_GREP_STRN)" $(VER_CHANGELOG) | wc -l) -gt 0 ]; then \
++		echo component: changelog has entry; \
++		else echo component: no changelog entry for entry; rm -f $(VER_TEMP_FILE); echo "$(VER_GREP_STRN) unstable; urgency=medium\n  * CI Build $(BUILD_MINOR).\n -- Igor Kukushkin <igor@pbne.mygbiz.com>  $(DATE_STAMP)\n" >> $(VER_TEMP_FILE);cat $(VER_CHANGELOG) >> $(VER_TEMP_FILE); mv $(VER_TEMP_FILE) $(VER_CHANGELOG); \
++	fi
++
++PATTERN?=dev-null_0.0.0-$(BUILD_MINOR)_amd64.deb
++SRC?=dev-null-0.0.0
++
++build-if-need-status:
++	@if [ ! -f $(DEBSINSIDE)/$(PATTERN) ]; then \
++		echo "1"; exit;\
++	else \
++		if [ $(shell find $(SRC)/ -newer $(DEBSINSIDE)/$(PATTERN) 2>/dev/null | wc -l) -gt 0 ]; then \
++			echo "1"; exit;\
++		else \
++			echo "0"; \
++		fi;\
++	fi
++
++clean:
++	@git clean -fd .
++
++check-varnish-repo:
++	@mkdir -p $(DEBS) && cd $(DEBS) && dpkg-scanpackages . > Packages && rm -f *.bz2 && bzip2 -kf Packages
++	@if [ $(shell grep "$(DEBS)" /etc/apt/sources.list 2>/dev/null | wc -l) -lt 1 ]; then \
++		echo "Updating repository list to point to $(DEBS)"; \
++		echo "deb [trusted=yes] file://$(DEBS) /" >> /etc/apt/sources.list; cat /etc/apt/sources.list;\
++	fi
++	@apt-get update;
++
++
++define BUILD_IF_NEED_STATUS
++	@if [ ! -f $(DEBSINSIDE)/$(1) ]; then echo "no proper deb in debs"; $(WRAPPER) make -f $(MAKEF) $(3); fi
++	@if [[ $(shell find $(2)/ -newer $(DEBSINSIDE)/$(1) | wc -l) -gt 0 ]]; then \
++		($(WRAPPER) make -f $(MAKEF) $(3) $(4) || $(WRAPPER) make -f $(MAKEF) $(4)); \
++	else\
++	     echo "skipping nginx";\
++	fi
++endef
+-- 
+2.7.4
+

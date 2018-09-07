@@ -1,0 +1,25 @@
+From d594ddad863adcee01d5d0c46608b04ebf832d59 Mon Sep 17 00:00:00 2001
+From: djkobraz <djkobraz@gmail.com>
+Date: Tue, 22 Aug 2017 03:35:36 +0300
+Subject: [PATCH 56/63] version update
+
+---
+ revsw-opensource-common.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/revsw-opensource-common.mk b/revsw-opensource-common.mk
+index 724e302..10623bd 100644
+--- a/revsw-opensource-common.mk
++++ b/revsw-opensource-common.mk
+@@ -11,7 +11,7 @@ APT_REPO=/etc/apt/sources.list.d/revsw-varnish-on-ci.list
+ DOCKER=docker run --rm $(INTERACTIVE) -v $(DIR):/work -w /work -e IN_DOCKER=true $(BUILDER)
+ #WRAPPER=$(DOCKER)
+ WRAPPER=sudo
+-BUILDER=revsw_proxy_builder_v6
++BUILDER=revsw_proxy_builder_v7
+ 
+ docker: 
+ ifeq ($(IN_DOCKER),"true")
+-- 
+2.7.4
+

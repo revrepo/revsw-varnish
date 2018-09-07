@@ -1,0 +1,51 @@
+varnishtest	"test sigsegv handler"
+
+server s1 {
+	rxreq
+	txresp
+} -start
+
+varnish v1 \
+	-arg "-p vcc_allow_inline_c=true" \
+	-arg "-p thread_pool_stack=48k" \
+	-vcl+backend {
+	C{
+#include <signal.h>
+#include <unistd.h>
+#include <stdio.h>
+
+static void _accessor(volatile char *p) {
+     p[0] = 'V'; p[1] = '\0';
+     fprintf(stderr, "%p %s\n", p, p);
+}
+void (*accessor)(volatile char *p) = _accessor;
+
+}C
+	sub vcl_recv { C{
+	    int i;
+	    volatile char overflow[48*1024];
+
+	    /* for downwards stack, take care to hit a single guard page */
+	    for (i = 47*1024; i >= 0; i -= 1024)
+		accessor(overflow + i);
+	    /* NOTREACHED */
+	    sleep(2);
+	}C }
+} -start
+
+client c1 {
+	txreq
+} -run
+
+delay 7
+
+varnish v1 -cliok "panic.clear"
+
+# Also check without the handler
+varnish v1 -cliok "param.set sigsegv_handler off"
+varnish v1 -vcl+backend {} -start
+
+client c1 {
+	txreq
+	rxresp
+} -run

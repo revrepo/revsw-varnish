@@ -1,0 +1,44 @@
+From 01d35e88100cd796d81f0f1d33305d4a2b703bbf Mon Sep 17 00:00:00 2001
+From: vimal gupta <vimal.gupta@techvedika.com>
+Date: Thu, 18 Dec 2014 14:16:37 +0530
+Subject: [PATCH 09/63] 1. Temporally Added varnishapi.pc to varnish4-vmods
+ directory to build. 2. Harcoded absolute path of prefix in varnishapi.pc for
+ temporally. 3. Updated libvmod-chromeloger and libvmod-var to compile with
+ varnish 4.0.2 4. Updated the debian/rules to compile only supported vmod. 5.
+ Added varnish-4.0.2 and varnish4-vmod compilation in Makefile. 6. Temporally
+ added the PKG_CONFIG_PATH in build-all.sh to overcome the vmod build issue.
+
+---
+ varnishapi.pc | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+ create mode 100644 varnishapi.pc
+
+diff --git a/varnishapi.pc b/varnishapi.pc
+new file mode 100644
+index 0000000..c71434c
+--- /dev/null
++++ b/varnishapi.pc
+@@ -0,0 +1,20 @@
++prefix=/home/techvedika/vimal-revsw/eng/enzo/open_source/varnish-4.0.2/debian/tmp/usr
++exec_prefix=${prefix}
++bindir=${exec_prefix}/bin
++sbindir=${exec_prefix}/sbin
++libdir=${prefix}/lib/x86_64-linux-gnu
++includedir=${prefix}/include
++pkgincludedir=${includedir}/varnish
++datarootdir=${prefix}/share
++datadir=${datarootdir}
++pkgdatadir=${datadir}/varnish
++pkgdataincludedir=${pkgdatadir}/include
++vmodincludedir=${pkgdataincludedir}
++vmoddir=${libdir}/varnish/vmods
++vmodtool=${pkgdatadir}/vmodtool.py
++
++Name: VarnishAPI
++Description: Varnish API
++Version: 4.0.2
++Cflags: -I${includedir}/varnish
++Libs: -L${libdir} -lvarnishapi
+-- 
+2.7.4
+

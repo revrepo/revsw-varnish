@@ -1,0 +1,24 @@
+From e86d49ca8dedc2d45089d3e9ab69327055be4c25 Mon Sep 17 00:00:00 2001
+From: vimal gupta <vimal.gupta@techvedika.com>
+Date: Tue, 23 Dec 2014 16:01:24 +0530
+Subject: [PATCH 20/63] updated the function name in vmod_cookie.vcc
+
+---
+ libvmod-cookie-4.0/src/vmod_cookie.vcc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/libvmod-cookie-4.0/src/vmod_cookie.vcc b/libvmod-cookie-4.0/src/vmod_cookie.vcc
+index 5329f1b..567647c 100644
+--- a/libvmod-cookie-4.0/src/vmod_cookie.vcc
++++ b/libvmod-cookie-4.0/src/vmod_cookie.vcc
+@@ -7,6 +7,6 @@ $Function STRING get(STRING)
+ $Function BOOL isset(STRING)
+ $Function VOID delete(STRING)
+ $Function VOID filter_except(STRING)
+-$Function VOID vmod_filter_only(STRING)
++$Function VOID filter_only(STRING)
+ $Function STRING get_string()
+ $Function STRING format_rfc1123(TIME, DURATION)
+-- 
+2.7.4
+

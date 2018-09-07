@@ -1,0 +1,81 @@
+From d4ad96d4ed97e6e06b3cd7bed3b7ce7271b9b4d7 Mon Sep 17 00:00:00 2001
+From: sorinrevsw <sorin.revsw@gmail.com>
+Date: Wed, 31 Dec 2014 11:16:11 +0200
+Subject: [PATCH 32/63] Fixed another NULL string access causing SEGFAULT.
+
+---
+ debian/changelog                     |  2 +-
+ debian/rules                         |  3 ++-
+ libvmod-cookie-4.0/src/vmod_cookie.c | 13 +++++++------
+ 3 files changed, 10 insertions(+), 8 deletions(-)
+
+diff --git a/debian/changelog b/debian/changelog
+index 406d516..76a009a 100644
+--- a/debian/changelog
++++ b/debian/changelog
+@@ -1,6 +1,6 @@
+ revsw-varnish4-modules (0.5-3) unstable; urgency=medium
+ 
+-  * Fixed NULL string access causing SEGFAULT.
++  * Fixed NULL string accesses causing SEGFAULT.
+ 
+  -- Sorin Otescu <sorin@revsw.com>  Wed, 31 Dec 2014 10:17:52 +0200
+ 
+diff --git a/debian/rules b/debian/rules
+index 2dc36f3..32f616c 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -5,8 +5,9 @@ VARNISHSRC := $(shell readlink -f ../varnish-4.0.2)
+ VMODDIR := /usr/lib/varnish/vmods
+ VMOD_ABI := $(shell printf '\#include "vmod_abi.h"\nVMOD_ABI_Version' | cpp - -I$(VARNISHSRC)/include | sed '/^\#/D;s/"//g;s/\([A-Z]\)/\L\1/g;s/[^a-z0-9.]/-/g;s/varnish/varnishabi/')
+ 
++LOCAL_CFLAGS := -g3
+ #LOCAL_CFLAGS := -O0 -g3
+-#LOCAL_LDFLAGS := -g3
++LOCAL_LDFLAGS := -g3
+ 
+ override_dh_auto_configure:
+ 	cd libvmod-chromelogger-4.0 && ./autogen.sh && CFLAGS="$(LOCAL_CFLAGS)" LDFLAGS="$(LOCAL_LDFLAGS)" ./configure --prefix=/usr --datarootdir=/usr/share --disable-static VMODDIR="$(VMODDIR)" VARNISHSRC="$(VARNISHSRC)"
+diff --git a/libvmod-cookie-4.0/src/vmod_cookie.c b/libvmod-cookie-4.0/src/vmod_cookie.c
+index bf343a2..61ea7f9 100644
+--- a/libvmod-cookie-4.0/src/vmod_cookie.c
++++ b/libvmod-cookie-4.0/src/vmod_cookie.c
+@@ -72,14 +72,14 @@ cobj_get(const struct vrt_ctx *ctx) {
+ 		cobj_clear(vcp);
+ 		vcp->xid = ctx->req->vsl[0].wid;
+ 		AZ(pthread_setspecific(key, vcp));
+-        VSLb(ctx->vsl, SLT_Debug, "cookie: new XID %u", vcp->xid);
++        //VSLb(ctx->vsl, SLT_Debug, "cookie: new XID %u", vcp->xid);
+ 	}
+ 
+ 	CHECK_OBJ_NOTNULL(vcp, VMOD_COOKIE_MAGIC);
+ 
+ 	if (vcp->xid != ctx->req->vsl[0].wid) {
+-        VSLb(ctx->vsl, SLT_Debug, "cookie: reusing entry for XID %u; new XID %u",
+-             vcp->xid, ctx->req->vsl[0].wid);
++        //VSLb(ctx->vsl, SLT_Debug, "cookie: reusing entry for XID %u; new XID %u",
++        //     vcp->xid, ctx->req->vsl[0].wid);
+ 		// Reuse previously allocated storage
+ 		cobj_clear(vcp);
+ 		vcp->xid = ctx->req->vsl[0].wid;
+@@ -98,13 +98,14 @@ vmod_parse(const struct vrt_ctx *ctx, VCL_STRING cookieheader) {
+ 
+ 	int i = 0;
+ 
+-    VSLb(ctx->vsl, SLT_Debug, "cookie: parse for XID %u", ctx->req->vsl[0].wid);
+-    VSL_Flush(ctx->vsl, 0);
++    //VSLb(ctx->vsl, SLT_Debug, "cookie: parse for XID %u", ctx->req->vsl[0].wid);
++    //VSL_Flush(ctx->vsl, 0);
+ 
+     /* If called twice during the same request, clean out old state */
+ 	vmod_clean(ctx);
+ 
+-	VSLb(ctx->vsl, SLT_Debug, "cookie: cookie string is %lu bytes.", strlen(cookieheader));
++	VSLb(ctx->vsl, SLT_Debug, "cookie: cookie string is %lu bytes.",
++         cookieheader ? strlen(cookieheader) : 0);
+ 
+ 	if (cookieheader == NULL || strlen(cookieheader) == 0) {
+ 		VSLb(ctx->vsl, SLT_VCL_Log, "cookie: nothing to parse");
+-- 
+2.7.4
+

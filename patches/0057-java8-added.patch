@@ -1,0 +1,39 @@
+From efe4ee0d84f0085dad69eab0c66a8dc549e0d6de Mon Sep 17 00:00:00 2001
+From: djkobraz <djkobraz@gmail.com>
+Date: Thu, 24 Aug 2017 02:34:56 +0300
+Subject: [PATCH 57/63] java8 added
+
+---
+ Dockerfile                 | 2 ++
+ revsw-opensource-common.mk | 2 +-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/Dockerfile b/Dockerfile
+index ea35cf8..8a06004 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -3,6 +3,8 @@ FROM ubuntu:14.04
+ MAINTAINER Igor Kukushkin <igor@pbne.mygbiz.com>
+ 
+ #ADD .pbuilderrc /tmp/.pbuilderrc
++RUN apt-get install software-properties-common python-software-properties
++RUN add-apt-repository ppa:webupd8team/java && apt-get update && apt-get install oracle-java8-installer
+ RUN apt-get update && apt-get -y install build-essential pbuilder autoconf automake debhelper dh-virtualenv debootstrap devscripts libtool pkg-config nano git equivs \
+ binfmt-support clang clang-3.4 fontconfig-config fonts-dejavu-core geoip-bin \
+   geoip-database libclang-common-3.4-dev libclang1-3.4 libexpat1-dev \
+diff --git a/revsw-opensource-common.mk b/revsw-opensource-common.mk
+index 10623bd..e373f81 100644
+--- a/revsw-opensource-common.mk
++++ b/revsw-opensource-common.mk
+@@ -11,7 +11,7 @@ APT_REPO=/etc/apt/sources.list.d/revsw-varnish-on-ci.list
+ DOCKER=docker run --rm $(INTERACTIVE) -v $(DIR):/work -w /work -e IN_DOCKER=true $(BUILDER)
+ #WRAPPER=$(DOCKER)
+ WRAPPER=sudo
+-BUILDER=revsw_proxy_builder_v7
++BUILDER=revsw_proxy_builder_v8
+ 
+ docker: 
+ ifeq ($(IN_DOCKER),"true")
+-- 
+2.7.4
+

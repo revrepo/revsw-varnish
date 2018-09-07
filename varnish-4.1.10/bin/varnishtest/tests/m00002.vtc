@@ -1,0 +1,33 @@
+varnishtest "Test std.random()"
+
+# needs random generator
+random
+
+server s1 {
+	rxreq
+	txresp
+} -start
+
+varnish v1 -vcl+backend {
+	import ${vmod_std};
+
+	sub vcl_deliver {
+		set resp.http.rnd1 = std.random(0, 1);
+		set resp.http.rnd2 = std.random(0, 10);
+		set resp.http.rnd3 = std.random(8, 10);
+		set resp.http.rnd4 = std.random(99, 100);
+	}
+} -start
+
+# NB: Do not change the number 1
+# NB: Only srandom(1) is standardized as deterministic.
+varnish v1 -cliok "debug.srandom 1"
+
+client c1 {
+	txreq
+	rxresp
+	expect resp.http.rnd1 == 0.388
+	expect resp.http.rnd2 == 7.478
+	expect resp.http.rnd3 == 9.034
+	expect resp.http.rnd4 == 99.502
+} -run
