@@ -11,7 +11,7 @@
 #include <netdb.h>
 
 #include "cache/cache.h"
-#include "cache/cache_backend.h"
+#include "cache/cache_director.h"
 
 #include "vrt.h"
 #include "vsa.h"
@@ -48,7 +48,7 @@ struct vmod_directors_rev_dns {
     /* This is the single VCL_BACKEND passed to set_backend() */
     VCL_BACKEND be;
 
-    /* This is our director structure, for getfd() and healthy() */
+    /* This is our director structure, for http1pipe() and healthy() */
     struct director *dir;
 
     unsigned nxt;
@@ -88,7 +88,7 @@ static void _cleanup_clones(struct vmod_directors_rev_dns *rev_dns)
         if (clone->addr)
             free(clone->addr);
         if (clone->dir)
-            VRT_fini_dir(NULL, clone->dir);
+            VRT_delete_backend(NULL, &clone->dir);
     }
 
     /* Paranoia */
@@ -148,7 +148,9 @@ static int _dup_backend(const struct vrt_ctx *ctx,
         return 1;
     }
 
-    vrt = VRT_get_backend(NULL, be);
+    // TODO: Fix this and revive VRT_get_backend
+    vrt = &rev_dns->bes[0].vrt_be;
+    //vrt = VRT_get_backend(NULL, be);
     AN(vrt);
 
     /*
@@ -209,7 +211,7 @@ static int _dup_backend(const struct vrt_ctx *ctx,
 
         _clone_vrt_backend(vrt, sua, clone);
 
-        VRT_init_dir(NULL, &clone->dir, 0, &clone->vrt_be);
+        clone->dir = VRT_new_backend(NULL, &clone->vrt_be);
 
         if (clone->vrt_be.ipv4_addr)
             LOGD(ctx, "  v4 '%s':'%s'", clone->vrt_be.ipv4_addr, clone->vrt_be.port);
@@ -221,7 +223,7 @@ static int _dup_backend(const struct vrt_ctx *ctx,
 }
 
 static unsigned
-_any_clone_healthy(struct vmod_directors_rev_dns *rev_dns,
+_any_clone_healthy(struct vmod_directors_rev_dns *rev_dns, const struct busyobj *bo,
                    double *changed)
 {
 	unsigned retval = 0;
@@ -235,7 +237,7 @@ _any_clone_healthy(struct vmod_directors_rev_dns *rev_dns,
 	for (u = 0; u < rev_dns->be_count; u++) {
 		be = rev_dns->bes[u].dir;
 		CHECK_OBJ_NOTNULL(be, DIRECTOR_MAGIC);
-		retval = be->healthy(be, &c);
+		retval = be->healthy(be, bo, &c);
 		if (changed != NULL && c > *changed)
 			*changed = c;
 		if (retval)
@@ -245,36 +247,34 @@ _any_clone_healthy(struct vmod_directors_rev_dns *rev_dns,
 	return retval;
 }
 
-static unsigned __match_proto__(vdi_healthy)
-vmod_rev_dns_healthy(const struct director *dir, double *changed)
+static unsigned __match_proto__(vdi_healthy_f)
+vmod_rev_dns_healthy(const struct director *dir, const struct busyobj *bo, double *changed)
 {
 	struct vmod_directors_rev_dns *rev_dns;
 
 	CAST_OBJ_NOTNULL(rev_dns, dir->priv, VMOD_DIRECTORS_REV_DNS_MAGIC);
-	return _any_clone_healthy(rev_dns, changed);
+	return _any_clone_healthy(rev_dns, bo, changed);
 }
 
-static struct vbc * __match_proto__(vdi_getfd_f)
-vmod_rev_dns_getfd(const struct director *dir, struct busyobj *bo)
+static void __match_proto__(vdi_http1pipe_f)
+vmod_rev_dns_http1pipe(const struct director *dir, struct req *req, struct busyobj *bo)
 {
 	struct vmod_directors_rev_dns *rev_dns;
 	unsigned u;
 	VCL_BACKEND be = NULL;
 
 	CAST_OBJ_NOTNULL(rev_dns, dir->priv, VMOD_DIRECTORS_REV_DNS_MAGIC);
-    _lock(rev_dns);
+	_lock(rev_dns);
 	for (u = 0; u < rev_dns->be_count; u++) {
 		rev_dns->nxt %= rev_dns->be_count;
 		be = rev_dns->bes[rev_dns->nxt].dir;
 		rev_dns->nxt++;
 		CHECK_OBJ_NOTNULL(be, DIRECTOR_MAGIC);
-		if (be->healthy(be, NULL))
+		if (be->healthy(be, bo, NULL))
 			break;
 	}
 	_unlock(rev_dns);
-	if (u == rev_dns->be_count || be == NULL)
-		return NULL;
-	return be->getfd(be, bo);
+	be->http1pipe(be, req, bo);
 }
 
 VCL_VOID __match_proto__()
@@ -298,7 +298,7 @@ vmod_rev_dns__init(const struct vrt_ctx *ctx,
     REPLACE(rev_dns->dir->vcl_name, vcl_name);
     rev_dns->dir->priv = rev_dns;
     rev_dns->dir->healthy = vmod_rev_dns_healthy;
-    rev_dns->dir->getfd = vmod_rev_dns_getfd;
+    rev_dns->dir->http1pipe = vmod_rev_dns_http1pipe;
 }
 
 VCL_VOID __match_proto__()

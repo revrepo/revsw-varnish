@@ -69,6 +69,7 @@ int		 VSB_printf(struct vsb *, const char *, ...)
 int		 VSB_vprintf(struct vsb *, const char *, va_list)
 	__v_printflike(2, 0);
 #endif
+int              VSB_cpy(struct vsb *, const char *);
 int		 VSB_putc(struct vsb *, int);
 int		 VSB_error(const struct vsb *);
 int		 VSB_finish(struct vsb *);
