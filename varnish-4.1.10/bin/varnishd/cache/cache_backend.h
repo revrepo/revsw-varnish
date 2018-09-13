@@ -74,6 +74,8 @@ struct backend {
 	struct director		director[1];
 
 	double			cooled;
+
+	const struct vrt_backend *vrt;
 };
 
 /*---------------------------------------------------------------------

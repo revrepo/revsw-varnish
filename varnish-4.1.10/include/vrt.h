@@ -296,6 +296,9 @@ int VRT_Vmod_Init(struct vmod **hdl, void *ptr, int len, const char *nm,
     const char *path, const char *file_id, VRT_CTX);
 void VRT_Vmod_Fini(struct vmod **hdl);
 
+/*Revsw extenssion*/
+const struct vrt_backend *VRT_get_backend(struct cli *cli, const struct director *d);
+
 struct vmod_priv;
 typedef void vmod_priv_free_f(void *);
 struct vmod_priv {

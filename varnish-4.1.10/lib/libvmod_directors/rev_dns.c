@@ -143,14 +143,12 @@ static int _dup_backend(const struct vrt_ctx *ctx,
     unsigned i;
     const struct vrt_backend *vrt;
 
-    if (strcmp(be->name, "simple")) {
+    if (strcmp(be->name, "backend")) {
         LOGE(ctx, "Can't use rev_dns to wrap another director");
         return 1;
     }
 
-    // TODO: Fix this and revive VRT_get_backend
-    vrt = &rev_dns->bes[0].vrt_be;
-    //vrt = VRT_get_backend(NULL, be);
+    vrt = VRT_get_backend(NULL, be);
     AN(vrt);
 
     /*
