@@ -121,6 +121,10 @@ VRT_new_backend(VRT_CTX, const struct vrt_backend *vrt)
 	}
 	Lck_Unlock(&backends_mtx);
 
+	/* Revsw extession begin */
+	b->vrt = vrt;
+        /* Revsw extession end */
+
 	VBE_fill_director(b);
 
 	if (vbp != NULL)
@@ -468,4 +472,17 @@ VBE_InitCfg(void)
 
 	CLI_AddFuncs(backend_cmds);
 	Lck_New(&backends_mtx, lck_vbe);
+}
+
+/* RevSW extension */
+const struct vrt_backend *
+VRT_get_backend(struct cli *cli, const struct director *d)
+{
+    struct backend *be;
+
+    (void)cli;
+    CHECK_OBJ_NOTNULL(d, DIRECTOR_MAGIC);
+    CAST_OBJ_NOTNULL(be, d->priv, BACKEND_MAGIC);
+
+    return be->vrt;
 }
