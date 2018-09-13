@@ -300,6 +300,27 @@ VSB_bcat(struct vsb *s, const void *buf, ssize_t len)
 	return (0);
 }
 
+
+/*
+ * REVSW: port from old 4.0.3 function.
+ * Trim whitespace characters from end of an vsb.
+ */
+int
+VSB_trim(struct vsb *s)
+{
+
+        assert_VSB_integrity(s);
+        assert_VSB_state(s, 0);
+
+        if (s->s_error != 0)
+                return (-1);
+
+        while (s->s_len > 0 && isspace(s->s_buf[s->s_len-1]))
+                --s->s_len;
+
+        return (0);
+}
+
 /*
  * Append a string to an vsb.
  */
@@ -319,6 +340,21 @@ VSB_cat(struct vsb *s, const char *str)
 			return (-1);
 	}
 	return (0);
+}
+
+/*
+ * REVSW: port from old 4.0.3 function.
+ * Copy a string into an vsb.
+ */
+int
+VSB_cpy(struct vsb *s, const char *str)
+{
+
+        assert_VSB_integrity(s);
+        assert_VSB_state(s, 0);
+
+        VSB_clear(s);
+        return (VSB_cat(s, str));
 }
 
 /*

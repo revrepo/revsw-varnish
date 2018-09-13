@@ -72,7 +72,8 @@ VRT_new_backend(VRT_CTX, const struct vrt_backend *vrt)
 	const struct vrt_backend_probe *vbp;
 	int retval;
 
-	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
+	/* RevSW: This can be called from the rev_dns director, from the recv thread */
+	//CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
 	CHECK_OBJ_NOTNULL(vrt, VRT_BACKEND_MAGIC);
 	assert(vrt->ipv4_suckaddr != NULL || vrt->ipv6_suckaddr != NULL);
 
@@ -147,7 +148,8 @@ VRT_delete_backend(VRT_CTX, struct director **dp)
 	struct director *d;
 	struct backend *be;
 
-	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
+	/* RevSW: This can be called from the rev_dns director, from the recv thread */
+	//CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
 	AN(dp);
 	d = *dp;
 	*dp = NULL;
