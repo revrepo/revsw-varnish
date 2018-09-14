@@ -115,7 +115,18 @@ init_function(struct vmod_priv *priv, const struct VCL_conf *conf)
 // Set the multiplication factor
 void
 vmod_unit( const struct vrt_ctx *ctx, struct vmod_priv *priv, const char *unit ) {
+
+    /*Revsw begin: in 4.1.10 init function isn't called*/
     config_t *cfg   = priv->priv;
+    if(!cfg)
+    {
+        //config_t *cfg;
+        cfg             = malloc(sizeof(config_t));
+        cfg->multiplier = 1000;     // default to milliseconds
+
+        priv->priv      = cfg;
+    }
+    /*Revsw end*/
 
     cfg->multiplier =
         strcasecmp( unit, "seconds"      ) == 0 ? 1                     :
