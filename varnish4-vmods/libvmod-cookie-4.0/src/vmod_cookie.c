@@ -59,6 +59,10 @@ cobj_clear(struct vmod_cookie *c) {
 
 static struct vmod_cookie *
 cobj_get(const struct vrt_ctx *ctx) {
+	/*Revsw beign: init this global object once before usage*/
+	pthread_once(&key_is_initialized, mkkey);
+	/*Revsw end*/
+
 	struct vmod_cookie *vcp = pthread_getspecific(key);
 
     /*
